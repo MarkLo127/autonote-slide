@@ -14,10 +14,10 @@ def app():
         unsafe_allow_html=True,
     )
     options = st.sidebar.selectbox(
-        "選擇功能", ["摘要整理","關鍵字擷取","心智圖生成","簡報生成"]
+        "🛠️ 選擇功能", ["摘要整理","關鍵字擷取","心智圖生成","簡報生成"]
     )
-    apikey = st.sidebar.text_input("apikey", placeholder="輸入apikey")
-    baseurl = st.sidebar.text_input("baseurl", placeholder="輸入baseurl(可選)")
+    apikey = st.sidebar.text_input("🗝️ apikey", placeholder="🗝️ 輸入apikey")
+    baseurl = st.sidebar.text_input("🔗 baseurl", placeholder="🔗 輸入baseurl(可選)")
 
     save = st.sidebar.button("儲存",use_container_width=True)
     reset = st.sidebar.button("重置",use_container_width=True)
