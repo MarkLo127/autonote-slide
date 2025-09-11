@@ -10,7 +10,7 @@ def app():
     )
     st.subheader(" ", divider="rainbow")
     st.sidebar.markdown(
-        "<h2 style='text-align: center; color: grey;'>功能選單</h2>",
+        "<h2 style='text-align: center; color: grey;'>📜 功能選單</h2>",
         unsafe_allow_html=True,
     )
     options = st.sidebar.selectbox(
