@@ -5,7 +5,7 @@ def app():
     hide_menu_style = "<style> footer {visibility: hidden;} </style>"
     st.markdown(hide_menu_style, unsafe_allow_html=True)
     st.markdown(
-        "<h1 style='text-align: center; color: rainbow;'>Autonote&Slide</h1>",
+        "<h1 style='text-align: center; color: rainbow;'>📄 Autonote&Slide</h1>",
         unsafe_allow_html=True,
     )
     st.subheader(" ", divider="rainbow")
@@ -15,6 +15,8 @@ def app():
     )
     apikey = st.sidebar.text_input("apikey", placeholder="輸入apikey")
     baseurl = st.sidebar.text_input("baseurl", placeholder="輸入baseurl(可選)")
+
+
     if options == "摘要整理":
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
