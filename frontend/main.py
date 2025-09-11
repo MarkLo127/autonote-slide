@@ -9,10 +9,6 @@ def app():
         unsafe_allow_html=True,
     )
     st.subheader(" ", divider="rainbow")
-    st.markdown(
-        "<h3 style='text-align: center; color: grey;'>讓AI幫你整理筆記、生成簡報</h3>",
-        unsafe_allow_html=True,
-    )
     st.sidebar.markdown(
         "<h2 style='text-align: center; color: grey;'>功能選單</h2>",
         unsafe_allow_html=True,
@@ -28,18 +24,34 @@ def app():
     
     
     if options == "摘要整理":
+        st.markdown(
+            "<h3 style='text-align: center; color: grey;'>摘要整理</h3>",
+            unsafe_allow_html=True
+            )
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
     elif options == "關鍵字擷取":
+        st.markdown(
+            "<h3 style='text-align: center; color: grey;'>關鍵字擷取</h3>",
+            unsafe_allow_html=True
+            )
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
     elif options == "心智圖生成":
+        st.markdown(
+            "<h3 style='text-align: center; color: grey;'>心智圖生成</h3>",
+            unsafe_allow_html=True
+            )
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
     elif options == "簡報生成":
+        st.markdown(
+            "<h3 style='text-align: center; color: grey;'>簡報生成</h3>",
+            unsafe_allow_html=True
+            )
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
