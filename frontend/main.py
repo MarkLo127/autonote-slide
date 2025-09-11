@@ -15,6 +15,23 @@ def app():
     )
     apikey = st.sidebar.text_input("apikey", placeholder="輸入apikey")
     baseurl = st.sidebar.text_input("baseurl", placeholder="輸入baseurl(可選)")
+    if options == "摘要整理":
+        files = st.file_uploader(
+            "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
+            )
+    elif options == "關鍵字擷取":
+        files = st.file_uploader(
+            "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
+            )
+    elif options == "心智圖生成":
+        files = st.file_uploader(
+            "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
+            )
+    elif options == "簡報生成":
+        files = st.file_uploader(
+            "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
+            )
+
 
     # Add more components and logic for the main application here
 
