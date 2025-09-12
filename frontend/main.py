@@ -31,6 +31,8 @@ def app():
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
+        left, middle, right = st.columns(3)
+        middle.button("開始摘要整理",use_container_width=True)
     elif options == "關鍵字擷取":
         st.markdown(
             "<h3 style='text-align: center; color: grey;'>關鍵字擷取</h3>",
@@ -39,6 +41,8 @@ def app():
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
+        left, middle, right = st.columns(3)
+        middle.button("開始關鍵字擷取",use_container_width=True)
     elif options == "心智圖生成":
         st.markdown(
             "<h3 style='text-align: center; color: grey;'>心智圖生成</h3>",
@@ -47,6 +51,8 @@ def app():
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
+        left, middle, right = st.columns(3)
+        middle.button("開始生成心智圖",use_container_width=True)
     elif options == "簡報生成":
         st.markdown(
             "<h3 style='text-align: center; color: grey;'>簡報生成</h3>",
@@ -55,6 +61,8 @@ def app():
         files = st.file_uploader(
             "上傳文件", accept_multiple_files=True, type=["pdf", "docx", "doc","pptx","ppt","md","txt"]
             )
+        left, middle, right = st.columns(3)
+        middle.button("開始生成簡報",use_container_width=True)
 
 
     # Add more components and logic for the main application here
