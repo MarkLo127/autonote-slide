@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os, uuid, shutil, json
+
 from .config import settings
 from .services.convert import convert_to_pdf
 from .services.pdf_text import extract_paragraphs
@@ -11,8 +12,19 @@ from .services.keywords import make_keywords
 from .services.slides import make_slides
 from .services.mindmap import make_mindmap
 from .services.utils import save_upload, write_json, bundle_zip, job_dir
+from .services.ai import set_request_llm
+from starlette.requests import Request
 
 app = FastAPI(title="AI Agent Backend", version="1.0.0")
+
+@app.middleware("http")
+async def llm_header_middleware(request: Request, call_next):
+    api_key = request.headers.get("X-LLM-API-Key")
+    base_url = request.headers.get("X-LLM-Base-Url")
+    set_request_llm(api_key, base_url)
+    resp = await call_next(request)
+    return resp
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -141,3 +153,13 @@ def download_bundle(job_id: str):
     if not os.path.exists(bundle):
         raise HTTPException(status_code=404, detail="Bundle not found")
     return FileResponse(bundle, media_type="application/zip", filename=f"{job_id}_bundle.zip")
+
+
+@app.get("/file/{job_id}/{fname:path}")
+def get_file(job_id: str, fname: str):
+    base = job_dir(job_id)
+    path = os.path.join(base, fname)
+    if not os.path.abspath(path).startswith(os.path.abspath(base)) or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    # 自動判斷 mime（瀏覽器下載）
+    return FileResponse(path)
