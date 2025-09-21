@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os, uuid, shutil, json
+import os, uuid, json
 
 from .config import settings
 from .services.convert import convert_to_pdf
@@ -19,6 +19,7 @@ app = FastAPI(title="AI Agent Backend", version="1.0.0")
 
 @app.middleware("http")
 async def llm_header_middleware(request: Request, call_next):
+    # 支援從前端以 Header 傳入 LLM Key/BaseURL（不影響既有 UI）
     api_key = request.headers.get("X-LLM-API-Key")
     base_url = request.headers.get("X-LLM-Base-Url")
     set_request_llm(api_key, base_url)
@@ -154,12 +155,10 @@ def download_bundle(job_id: str):
         raise HTTPException(status_code=404, detail="Bundle not found")
     return FileResponse(bundle, media_type="application/zip", filename=f"{job_id}_bundle.zip")
 
-
 @app.get("/file/{job_id}/{fname:path}")
 def get_file(job_id: str, fname: str):
     base = job_dir(job_id)
     path = os.path.join(base, fname)
     if not os.path.abspath(path).startswith(os.path.abspath(base)) or not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
-    # 自動判斷 mime（瀏覽器下載）
     return FileResponse(path)
