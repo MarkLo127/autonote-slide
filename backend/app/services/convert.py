@@ -1,8 +1,8 @@
-import os, subprocess, shlex, uuid
-from typing import Optional
-from .utils import run_cmd, ensure_ext
+# backend/app/services/convert.py
+import os, shlex
+from .utils import run_cmd  # ← 移除 ensure_ext
 
-SUPPORTED = {".doc",".docx",".ppt",".pptx",".md",".txt"}
+SUPPORTED = {".doc", ".docx", ".ppt", ".pptx", ".md", ".txt"}
 
 def convert_to_pdf(src_path: str, outdir: str) -> str:
     ext = os.path.splitext(src_path)[1].lower()
@@ -10,20 +10,21 @@ def convert_to_pdf(src_path: str, outdir: str) -> str:
     base = os.path.splitext(os.path.basename(src_path))[0]
     out_pdf = os.path.join(outdir, f"{base}.pdf")
 
-    if ext in {".doc",".docx",".ppt",".pptx"}:
+    if ext in {".doc", ".docx", ".ppt", ".pptx"}:
         # LibreOffice headless conversion
         cmd = f"soffice --headless --convert-to pdf --outdir {shlex.quote(outdir)} {shlex.quote(src_path)}"
         run_cmd(cmd)
-        # LibreOffice names with .pdf using original base
+        # LibreOffice 會用原始檔名輸出 .pdf；若檔名有差異，撿第一個 pdf
         if not os.path.exists(out_pdf):
-            # sometimes LO changes name slightly; find first pdf
             for f in os.listdir(outdir):
                 if f.lower().endswith(".pdf"):
                     return os.path.join(outdir, f)
+
     elif ext in {".md", ".txt"}:
         # Pandoc conversion
         cmd = f"pandoc {shlex.quote(src_path)} -o {shlex.quote(out_pdf)}"
         run_cmd(cmd)
+
     else:
         raise ValueError(f"Cannot convert {ext}")
 
