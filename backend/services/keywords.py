@@ -1,6 +1,5 @@
 from typing import Dict, List, Optional
 from langdetect import detect
-import re
 
 # 中文：jieba；英文：RAKE
 import jieba.analyse

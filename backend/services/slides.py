@@ -14,7 +14,7 @@ PRESET_THEMES: Dict[str, Dict] = {
         "bg_color": "#FFFFFF",
         "title_color": "#111111",
         "body_color": "#222222",
-        "accent_color": "#3B82F6",  # 藍色
+        "accent_color": "#3B82F6",
         "title_font": "PingFang TC",
         "body_font": "PingFang TC",
         "title_size": 40,
@@ -62,23 +62,25 @@ def _apply_ratio(prs: Presentation, ratio: str):
 
 def _apply_bg(slide, theme: Dict):
     bg_img = theme.get("bg_image_path")
-    if bg_img and Path(bg_img).exists():
-        # 以全幅圖片作為背景
-        pic = slide.shapes.add_picture(str(bg_img), 0, 0, width=slide.part.slide_width, height=slide.part.slide_height)
-        pic.zorder = 0  # 背景
-    else:
-        fill = slide.background.fill
-        fill.solid()
-        fill.fore_color.rgb = _hex_to_rgb(theme.get("bg_color", "#FFFFFF"))
+    if bg_img:
+        p = Path(bg_img)
+        if p.exists():
+            pic = slide.shapes.add_picture(str(p), 0, 0, width=slide.part.slide_width, height=slide.part.slide_height)
+            pic.zorder = 0
+            return
+    fill = slide.background.fill
+    fill.solid()
+    fill.fore_color.rgb = _hex_to_rgb(theme.get("bg_color", "#FFFFFF"))
 
 def _maybe_add_logo(slide, theme: Dict):
     logo = theme.get("logo_path")
-    if logo and Path(logo).exists():
-        w = Inches(1.1)
-        h = None
-        left = slide.part.slide_width - w - Inches(0.3)
-        top = Inches(0.2)
-        slide.shapes.add_picture(str(logo), left, top, width=w, height=h)
+    if logo:
+        p = Path(logo)
+        if p.exists():
+            w = Inches(1.1)
+            left = slide.part.slide_width - w - Inches(0.3)
+            top = Inches(0.2)
+            slide.shapes.add_picture(str(p), left, top, width=w, height=None)
 
 def _maybe_footer(slide, theme: Dict):
     text = theme.get("footer_text")
@@ -109,7 +111,6 @@ def _style_title_placeholder(slide, theme: Dict):
         p.alignment = PP_ALIGN.LEFT
 
 def _style_body_placeholder(slide, theme: Dict):
-    # 嘗試抓主要內文 placeholder（通常是 index 1）
     body = None
     for shp in slide.placeholders:
         if shp.placeholder_format.idx == 1:
@@ -120,10 +121,8 @@ def _style_body_placeholder(slide, theme: Dict):
     tf = body.text_frame
     tf.word_wrap = True
     for p in tf.paragraphs:
-        # 確保至少一個 run
         if not p.runs:
-            r = p.add_run()
-            r.text = p.text
+            r = p.add_run(); r.text = p.text
         for r in p.runs:
             f = r.font
             f.name = theme.get("body_font", "Arial")
@@ -134,7 +133,6 @@ def _style_body_placeholder(slide, theme: Dict):
 def _merge_theme(preset_name: Optional[str], overrides: Optional[Dict]) -> Dict:
     base = PRESET_THEMES.get(preset_name or "clean_light", PRESET_THEMES["clean_light"]).copy()
     if overrides:
-        # 去掉 preset_name 以免污染
         overrides = {k: v for k, v in overrides.items() if k != "preset_name" and v is not None}
         base.update(overrides)
     return base
@@ -143,7 +141,8 @@ def _to_pdf_with_libreoffice(pptx_path: Path) -> Path:
     outdir = with_outputs("").parent
     cmd = ["soffice", "--headless", "--convert-to", "pdf", str(pptx_path), "--outdir", str(outdir)]
     try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        import subprocess as _sp
+        _sp.run(cmd, check=True, stdout=_sp.PIPE, stderr=_sp.PIPE)
         pdf_path = outdir / (pptx_path.stem + ".pdf")
         return pdf_path
     except Exception as e:

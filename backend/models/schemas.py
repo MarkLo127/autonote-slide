@@ -3,24 +3,23 @@ from typing import List, Optional
 
 class TextRequest(BaseModel):
     text: str
+    # 可選：也能在 /api/summarize 時帶 LLM 覆蓋
+    llm_baseurl: Optional[str] = None
+    llm_apikey: Optional[str] = None
+    llm_model: Optional[str] = None
 
 class Theme(BaseModel):
-    # 預設主題名稱（可不填，若提供將先載入預設，再用下面欄位覆蓋）
     preset_name: Optional[str] = None
-    # 版面比例："16:9" 或 "4:3"
     ratio: Optional[str] = "16:9"
-    # 色彩（HEX）
-    bg_color: Optional[str] = None        # 背景，例如 "#0B1221"
+    bg_color: Optional[str] = None
     title_color: Optional[str] = None
     body_color: Optional[str] = None
     accent_color: Optional[str] = None
-    # 字型與大小
     title_font: Optional[str] = None
     body_font: Optional[str] = None
-    title_size: Optional[int] = None      # pt
-    body_size: Optional[int] = None       # pt
-    # 其他裝飾
-    logo_path: Optional[str] = None       # 可放在 storage/assets/ 下
+    title_size: Optional[int] = None
+    body_size: Optional[int] = None
+    logo_path: Optional[str] = None
     footer_text: Optional[str] = None
     bg_image_path: Optional[str] = None
 

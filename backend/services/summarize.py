@@ -1,7 +1,6 @@
 from typing import Dict, List, Optional
 from services.llm import ask_llm
-import re
-import json
+import re, json
 
 SYSTEM = (
     "You summarize documents and map each point back to paragraph ids when possible. "
@@ -16,7 +15,6 @@ PROMPT_TMPL = (
 )
 
 def _fallback_summary(text: str, paragraphs: Optional[List[dict]] = None) -> Dict:
-    # 取前幾段第一句當作粗略重點
     sent = re.split(r"(?<=[。！？.!?])\s+", text)
     picks = [s.strip() for s in sent if s.strip()][:8]
     points = []
@@ -27,11 +25,15 @@ def _fallback_summary(text: str, paragraphs: Optional[List[dict]] = None) -> Dic
         points.append(pts)
     return {"points": points}
 
-def make_summary(text: str, paragraphs: Optional[List[dict]] = None) -> Dict:
-    prompt = PROMPT_TMPL.format(text=text[:8000])  # 控制長度，避免超限
-    resp = ask_llm(prompt, SYSTEM)
+def make_summary(
+    text: str,
+    paragraphs: Optional[List[dict]] = None,
+    llm: Optional[dict] = None,    # 可帶 {base_url, api_key, model}
+) -> Dict:
+    prompt = PROMPT_TMPL.format(text=text[:8000])
+    kwargs = llm or {}
+    resp = ask_llm(prompt, SYSTEM, **kwargs) if kwargs else ask_llm(prompt, SYSTEM)
     if resp:
-        # 嘗試解析為 JSON；若不是，就包成單點
         try:
             data = json.loads(resp)
             if isinstance(data, dict) and "points" in data:

@@ -12,17 +12,17 @@ SUPPORTED_IMAGE = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
 def save_upload(file) -> Path:
     dest = uploads_dir / file.filename
     with dest.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+        import shutil as _sh
+        _sh.copyfileobj(file.file, f)
     return dest
 
 def _libreoffice_convert(src: Path) -> Optional[Path]:
     # 以 LibreOffice headless 轉 PDF
     outdir = with_outputs("").parent
-    cmd = [
-        "soffice", "--headless", "--convert-to", "pdf", str(src), "--outdir", str(outdir)
-    ]
+    cmd = ["soffice", "--headless", "--convert-to", "pdf", str(src), "--outdir", str(outdir)]
     try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        import subprocess as _sp
+        _sp.run(cmd, check=True, stdout=_sp.PIPE, stderr=_sp.PIPE)
         pdf_path = outdir / (src.stem + ".pdf")
         return pdf_path if pdf_path.exists() else None
     except Exception:
@@ -35,7 +35,6 @@ def _image_to_pdf(src: Path) -> Path:
     return out
 
 def _txt_md_to_pdf(src: Path) -> Path:
-    # 簡單做：把純文字塞進單頁 PDF（無樣式）
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     out = with_outputs(src.stem + ".pdf")

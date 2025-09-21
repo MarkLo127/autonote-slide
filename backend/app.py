@@ -10,7 +10,7 @@ from services.keywords import make_keywords
 from services.slides import make_slides, list_theme_presets
 from utils.paths import ensure_dirs, outputs_dir
 
-app = FastAPI(title="AI Doc Agent Backend", version="1.1.0")
+app = FastAPI(title="AI Doc Agent Backend", version="1.2.0")
 
 # 靜態檔案：讓前端可直接取用輸出
 app.mount("/outputs", StaticFiles(directory=str(outputs_dir)), name="outputs")
@@ -37,11 +37,18 @@ async def convert(file: UploadFile = File(None), path: str = Form(None)):
 
 @app.post("/api/summarize", response_model=dict)
 async def summarize(req: TextRequest):
-    summary = make_summary(req.text)
+    llm_overrides = {
+        "base_url": req.llm_baseurl,
+        "api_key": req.llm_apikey,
+        "model": req.llm_model
+    }
+    llm_overrides = {k: v for k, v in llm_overrides.items() if v}
+    summary = make_summary(req.text, llm=llm_overrides if llm_overrides else None)
     return {"ok": True, "summary": summary}
 
 @app.post("/api/keywords", response_model=dict)
 async def keywords(req: TextRequest):
+    from services.keywords import make_keywords
     kws = make_keywords(req.text)
     return {"ok": True, "keywords": kws}
 
@@ -65,7 +72,10 @@ async def process(
     file: UploadFile = File(None),
     path: str = Form(None),
     theme_preset: str = Form(None),
-    footer_text: str = Form(None)
+    footer_text: str = Form(None),
+    llm_baseurl: str = Form(None),
+    llm_apikey: str = Form(None),
+    llm_model: str = Form(None),
 ):
     # 1) 取得來源
     if file is not None:
@@ -81,9 +91,19 @@ async def process(
     # 3) 讀取 PDF（含必要時 OCR）
     doc = read_pdf_to_paragraphs(pdf_path)
 
-    # 4) 摘要 & 關鍵字
-    summary = make_summary(doc["full_text"], paragraphs=doc["paragraphs"])  # 附段落幫助回標
-    keywords = make_keywords(doc["full_text"], paragraphs=doc["paragraphs"])  # 同上
+    # 4) 摘要 & 關鍵字（允許 LLM 單次覆蓋）
+    llm_overrides = {k: v for k, v in {
+        "base_url": llm_baseurl,
+        "api_key": llm_apikey,
+        "model": llm_model
+    }.items() if v}
+
+    summary = make_summary(
+        doc["full_text"],
+        paragraphs=doc["paragraphs"],
+        llm=llm_overrides if llm_overrides else None
+    )
+    keywords = make_keywords(doc["full_text"], paragraphs=doc["paragraphs"])
 
     # 5) 產生簡報（以摘要重點為主），可指定主題
     points = [s.get("point") if isinstance(s, dict) else str(s) for s in summary.get("points", [])]
