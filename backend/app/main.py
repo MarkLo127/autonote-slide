@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+# backend/app/main.py
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os, uuid, json
@@ -13,28 +14,27 @@ from .services.slides import make_slides
 from .services.mindmap import make_mindmap
 from .services.utils import save_upload, write_json, bundle_zip, job_dir
 from .services.ai import set_request_llm
-from starlette.requests import Request
 
 app = FastAPI(title="AI Agent Backend", version="1.0.0")
 
-# 讀取前端以 Header 傳入的 API Key / BaseURL（每請求套用）
-@app.middleware("http")
-async def llm_header_middleware(request: Request, call_next):
-    api_key = request.headers.get("X-LLM-API-Key")
-    # 同時支援兩種大小寫的 BaseURL 標頭
-    base_url = request.headers.get("X-LLM-Base-Url") or request.headers.get("X-LLM-Base-URL")
-    set_request_llm(api_key, base_url)
-    resp = await call_next(request)
-    return resp
-
+# ====== CORS ======
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],  # 允許自訂 Headers
 )
 
+# ====== 讓前端以 Header 傳入 LLM Key/BaseURL（每請求套用）======
+@app.middleware("http")
+async def llm_header_middleware(request: Request, call_next):
+    api_key = request.headers.get("X-LLM-API-Key")
+    base_url = request.headers.get("X-LLM-Base-Url") or request.headers.get("X-LLM-Base-URL")
+    set_request_llm(api_key, base_url)
+    return await call_next(request)
+
+# ====== Schemas ======
 class ProcessResponse(BaseModel):
     job_id: str
     pdf_path: str
@@ -46,6 +46,45 @@ class ProcessResponse(BaseModel):
     mindmap_pdf: str
     bundle_zip: str
 
+class SummarizeIn(BaseModel):
+    job_id: str
+    pdf_path: str
+
+class KeywordsIn(BaseModel):
+    job_id: str
+    pdf_path: str
+    mapping_json: str
+
+class SlidesIn(BaseModel):
+    job_id: str
+    summary_json: str
+
+class MindmapIn(BaseModel):
+    job_id: str
+    summary_json: str
+    keywords_json: str
+
+# 小工具：相容 query/form/json 三種輸入
+async def _coerce_json(request: Request) -> dict:
+    data = {}
+    # 1) JSON
+    try:
+        data = await request.json()
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    # 2) FORM
+    try:
+        form = await request.form()
+        if form:
+            return dict(form)
+    except Exception:
+        pass
+    # 3) QUERY
+    return dict(request.query_params)
+
+# ====== Endpoints ======
 @app.get("/health")
 def health():
     return {"ok": True, "model": settings.LLM_MODEL, "base_url": settings.LLM_BASE_URL or "openai-default"}
@@ -60,7 +99,13 @@ async def api_convert(file: UploadFile = File(...)):
     return {"job_id": jid, "pdf_path": pdf_path}
 
 @app.post("/summarize")
-def api_summarize(job_id: str, pdf_path: str):
+async def api_summarize(request: Request):
+    data = await _coerce_json(request)
+    if not data.get("job_id") or not data.get("pdf_path"):
+        raise HTTPException(status_code=422, detail="job_id and pdf_path are required")
+    job_id = data["job_id"]
+    pdf_path = data["pdf_path"]
+
     paras, mapping = extract_paragraphs(pdf_path)
     summary = make_summary(paras)
     map_path = os.path.join(job_dir(job_id), "paragraphs.json")
@@ -70,7 +115,14 @@ def api_summarize(job_id: str, pdf_path: str):
     return {"job_id": job_id, "mapping_json": map_path, "summary_json": sum_path}
 
 @app.post("/keywords")
-def api_keywords(job_id: str, pdf_path: str, mapping_json: str):
+async def api_keywords(request: Request):
+    data = await _coerce_json(request)
+    for k in ("job_id", "pdf_path", "mapping_json"):
+        if not data.get(k):
+            raise HTTPException(status_code=422, detail=f"{k} is required")
+    job_id = data["job_id"]
+    mapping_json = data["mapping_json"]
+
     with open(mapping_json, "r", encoding="utf-8") as f:
         mapping = json.load(f)
     paras = [p["text"] for p in mapping["items"]]
@@ -80,7 +132,14 @@ def api_keywords(job_id: str, pdf_path: str, mapping_json: str):
     return {"job_id": job_id, "keywords_json": kw_path}
 
 @app.post("/slides")
-def api_slides(job_id: str, summary_json: str):
+async def api_slides(request: Request):
+    data = await _coerce_json(request)
+    for k in ("job_id", "summary_json"):
+        if not data.get(k):
+            raise HTTPException(status_code=422, detail=f"{k} is required")
+    job_id = data["job_id"]
+    summary_json = data["summary_json"]
+
     with open(summary_json, "r", encoding="utf-8") as f:
         summary = json.load(f)
     out_pptx = os.path.join(job_dir(job_id), "slides.pptx")
@@ -89,7 +148,15 @@ def api_slides(job_id: str, summary_json: str):
     return {"job_id": job_id, "slides_pptx": out_pptx, "slides_pdf": out_pdf}
 
 @app.post("/mindmap")
-def api_mindmap(job_id: str, summary_json: str, keywords_json: str):
+async def api_mindmap(request: Request):
+    data = await _coerce_json(request)
+    for k in ("job_id", "summary_json", "keywords_json"):
+        if not data.get(k):
+            raise HTTPException(status_code=422, detail=f"{k} is required")
+    job_id = data["job_id"]
+    summary_json = data["summary_json"]
+    keywords_json = data["keywords_json"]
+
     with open(summary_json, "r", encoding="utf-8") as f:
         summary = json.load(f)
     with open(keywords_json, "r", encoding="utf-8") as f:
@@ -100,7 +167,7 @@ def api_mindmap(job_id: str, summary_json: str, keywords_json: str):
 
 @app.post("/process", response_model=ProcessResponse)
 async def api_process(file: UploadFile = File(...)):
-    jid = str(uuid.UUID(bytes=os.urandom(16)))[:8] if hasattr(uuid, "UUID") else str(uuid.uuid4())[:8]
+    jid = str(uuid.uuid4())[:8]
     outdir = job_dir(jid)
     os.makedirs(outdir, exist_ok=True)
 
