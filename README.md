@@ -29,13 +29,11 @@ sudo apt-get update
 sudo apt-get install -y libreoffice tesseract-ocr tesseract-ocr-chi-tra
 ```
 
+
 ## 啟動
 ```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app:app --reload --port 8000
+streamlit run frontend/main.py  
+{ [ -f .env ] || cp backend/.env.example .env; } && python -m uvicorn app:app --app-dir backend --host 0.0.0.0 --port 8000 --reload 
 ```
 
 ## API 一覽
