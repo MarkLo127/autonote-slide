@@ -22,7 +22,10 @@ def _get_client() -> OpenAI:
     base_url = _cv_base_url.get() or settings.LLM_BASE_URL
 
     if not api_key:
-        raise RuntimeError("LLM_API_KEY not provided. Pass via env or header X-LLM-API-Key.")
+        # 啟動不需要 Key；真正呼叫 LLM 時若還沒有，就報錯
+        raise RuntimeError(
+            "LLM_API_KEY not provided. Pass via header 'X-LLM-API-Key' (and optional 'X-LLM-Base-Url'/'X-LLM-Base-URL')."
+        )
 
     if base_url:
         return OpenAI(api_key=api_key, base_url=base_url)
@@ -43,11 +46,13 @@ def chat_json(system_prompt: str, user_prompt: str, max_tokens: Optional[int] = 
         max_tokens=max_toks,
     )
     content = msg.choices[0].message.content or "{}"
+    # 容錯處理：供應商偶爾會回 ```json ... ``` 包裹
+    s = content.strip()
+    if s.startswith("```"):
+        s = s.strip("`")
+        if s.startswith("json"):
+            s = s[4:].strip()
     try:
-        return json.loads(content)
+        return json.loads(s)
     except Exception:
-        # 最後防呆：若供應商格式偶有偏差
-        try:
-            return json.loads(content.strip().strip("```json").strip("```"))
-        except Exception:
-            return {"raw": content}
+        return {"raw": content}

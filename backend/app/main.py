@@ -17,11 +17,12 @@ from starlette.requests import Request
 
 app = FastAPI(title="AI Agent Backend", version="1.0.0")
 
+# 讀取前端以 Header 傳入的 API Key / BaseURL（每請求套用）
 @app.middleware("http")
 async def llm_header_middleware(request: Request, call_next):
-    # 支援從前端以 Header 傳入 LLM Key/BaseURL（不影響既有 UI）
     api_key = request.headers.get("X-LLM-API-Key")
-    base_url = request.headers.get("X-LLM-Base-Url")
+    # 同時支援兩種大小寫的 BaseURL 標頭
+    base_url = request.headers.get("X-LLM-Base-Url") or request.headers.get("X-LLM-Base-URL")
     set_request_llm(api_key, base_url)
     resp = await call_next(request)
     return resp
@@ -99,7 +100,7 @@ def api_mindmap(job_id: str, summary_json: str, keywords_json: str):
 
 @app.post("/process", response_model=ProcessResponse)
 async def api_process(file: UploadFile = File(...)):
-    jid = str(uuid.uuid4())[:8]
+    jid = str(uuid.UUID(bytes=os.urandom(16)))[:8] if hasattr(uuid, "UUID") else str(uuid.uuid4())[:8]
     outdir = job_dir(jid)
     os.makedirs(outdir, exist_ok=True)
 
