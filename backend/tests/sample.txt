@@ -1,5 +1,0 @@
-This is a plain text sample.
-We want to see if paragraph extraction works.
-
-中文與英文需要都能辨識。
-The output should include a summary and keywords.
