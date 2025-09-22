@@ -1,11 +1,8 @@
 # frontend/backend_client.py
-# Streamlit helper：呼叫 backend FastAPI（不更動你的 UI）
 import io, json, zipfile, requests, streamlit as st
 from typing import Tuple, Optional
 
-# ====== Configuration discovery（不新增 UI）======
 def _get_backend_url() -> str:
-    # 先用 session_state，其次 st.secrets，最後預設 localhost
     url = st.session_state.get("backend_url")
     if not url:
         try:
@@ -15,7 +12,7 @@ def _get_backend_url() -> str:
             url = None
     return (url or "http://localhost:8000").rstrip("/")
 
-def _get_llm_creds() -> Tuple[Optional[str], Optional[str]]:
+def _get_llm_creds() -> Tuple[Optional[str], Optional[str], Optional[str]]:
     api = (
         (st.session_state.get("api") or "").strip()
         or (st.session_state.get("api_key") or "").strip()
@@ -37,10 +34,21 @@ def _get_llm_creds() -> Tuple[Optional[str], Optional[str]]:
             base = (st.secrets.get("LLM_BASE_URL") or "").strip()  # type: ignore
         except Exception:
             base = ""
-    return (api or None), (base or None)
+
+    model = (
+        (st.session_state.get("model") or "").strip()
+        or (st.session_state.get("LLM_MODEL") or "").strip()
+    )
+    if not model:
+        try:
+            model = (st.secrets.get("LLM_MODEL") or "").strip()  # type: ignore
+        except Exception:
+            model = ""
+
+    return (api or None), (base or None), (model or None)
 
 def _auth_headers(require_api: bool = True) -> dict:
-    api, base = _get_llm_creds()
+    api, base, model = _get_llm_creds()
     if require_api and not api:
         st.error("❗ 尚未設定 API Key。請在左側「apikey」欄位輸入後再重試。")
         raise RuntimeError("Missing API Key")
@@ -48,14 +56,13 @@ def _auth_headers(require_api: bool = True) -> dict:
     if api:
         headers["X-LLM-API-Key"] = api
     if base:
-        # 同時送兩種大小寫，確保與後端 middleware 相容
-        headers["X-LLM-Base-URL"] = base  # URL
-        headers["X-LLM-Base-Url"] = base  # Url
+        headers["X-LLM-Base-URL"] = base
+        headers["X-LLM-Base-Url"] = base
+    if model:
+        headers["X-LLM-Model"] = model
     return headers
 
 def _show_http_error(resp: requests.Response, action_label: str):
-    # 從後端萃取 detail 訊息
-    detail = None
     try:
         j = resp.json()
         detail = j.get("detail", j)
@@ -63,7 +70,6 @@ def _show_http_error(resp: requests.Response, action_label: str):
         detail = resp.text
     st.error(f"❌ {action_label} 失敗（HTTP {resp.status_code}）\n\n{detail}")
 
-# ====== Low-level HTTP helpers ======
 def _post_file(endpoint: str, uploaded_file, extra_data: dict = None) -> dict:
     url = f"{_get_backend_url()}{endpoint}"
     files = {
@@ -110,7 +116,6 @@ def _get_bytes(endpoint: str) -> bytes:
         st.error(f"❌ 下載錯誤：{e}")
         raise
 
-# ====== Pipeline pieces ======
 def convert(uploaded_file) -> dict:
     return _post_file("/convert", uploaded_file)
 
@@ -129,7 +134,7 @@ def mindmap(job_id: str, summary_json: str, keywords_json: str) -> dict:
 def download_bundle(job_id: str) -> bytes:
     return _get_bytes(f"/download/{job_id}")
 
-# ====== Convenience actions（在你的按鈕下呼叫）======
+# ====== Actions ======
 def do_summary_action(files):
     if not files:
         st.warning("請先上傳文件。")

@@ -1,3 +1,4 @@
+# backend/app/main.py
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,21 +17,25 @@ from .services.ai import set_request_llm
 
 app = FastAPI(title="AI Agent Backend", version="1.0.0")
 
+# ====== CORS ======
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],  # 允許自訂 Headers
 )
 
+# ====== 每請求：從 Header 套用 API Key/BaseURL/Model ======
 @app.middleware("http")
 async def llm_header_middleware(request: Request, call_next):
     api_key = request.headers.get("X-LLM-API-Key")
     base_url = request.headers.get("X-LLM-Base-Url") or request.headers.get("X-LLM-Base-URL")
-    set_request_llm(api_key, base_url)
+    model    = request.headers.get("X-LLM-Model")
+    set_request_llm(api_key, base_url, model)
     return await call_next(request)
 
+# ====== Schemas ======
 class ProcessResponse(BaseModel):
     job_id: str
     pdf_path: str
@@ -42,20 +47,7 @@ class ProcessResponse(BaseModel):
     mindmap_pdf: str
     bundle_zip: str
 
-@app.get("/health")
-def health():
-    return {"ok": True, "model": settings.LLM_MODEL, "base_url": settings.LLM_BASE_URL or "openai-default"}
-
-@app.post("/convert")
-async def api_convert(file: UploadFile = File(...)):
-    jid = str(uuid.uuid4())[:8]
-    outdir = job_dir(jid)
-    os.makedirs(outdir, exist_ok=True)
-    src_path = await save_upload(file, outdir)
-    pdf_path = convert_to_pdf(src_path, outdir)
-    return {"job_id": jid, "pdf_path": pdf_path}
-
-# ---- 這些端點同時容忍 JSON / FORM / QUERY ----
+# 小工具：相容 query/form/json 三種輸入
 async def _coerce_json(request: Request) -> dict:
     try:
         data = await request.json()
@@ -70,6 +62,20 @@ async def _coerce_json(request: Request) -> dict:
     except Exception:
         pass
     return dict(request.query_params)
+
+# ====== Endpoints ======
+@app.get("/health")
+def health():
+    return {"ok": True, "model": settings.LLM_MODEL, "base_url": settings.LLM_BASE_URL or "openai-default"}
+
+@app.post("/convert")
+async def api_convert(file: UploadFile = File(...)):
+    jid = str(uuid.uuid4())[:8]
+    outdir = job_dir(jid)
+    os.makedirs(outdir, exist_ok=True)
+    src_path = await save_upload(file, outdir)
+    pdf_path = convert_to_pdf(src_path, outdir)
+    return {"job_id": jid, "pdf_path": pdf_path}
 
 @app.post("/summarize")
 async def api_summarize(request: Request):
