@@ -1,5 +1,5 @@
-# backend_client.py
-# Streamlit helper to呼叫「backend」FastAPI（不更動你的 UI）
+# frontend/backend_client.py
+# Streamlit helper：呼叫 backend FastAPI（不更動你的 UI）
 import io, json, zipfile, requests, streamlit as st
 from typing import Tuple, Optional
 
@@ -13,37 +13,37 @@ def _get_backend_url() -> str:
                 url = st.secrets["BACKEND_URL"]
         except Exception:
             url = None
-    return url or "http://localhost:8000"
+    return (url or "http://localhost:8000").rstrip("/")
 
 def _get_llm_creds() -> Tuple[Optional[str], Optional[str]]:
     api = (
-        st.session_state.get("api")
-        or st.session_state.get("api_key")
-        or st.session_state.get("LLM_API_KEY")
+        (st.session_state.get("api") or "").strip()
+        or (st.session_state.get("api_key") or "").strip()
+        or (st.session_state.get("LLM_API_KEY") or "").strip()
     )
     if not api:
         try:
-            if "LLM_API_KEY" in st.secrets:
-                api = st.secrets["LLM_API_KEY"]
+            api = (st.secrets.get("LLM_API_KEY") or "").strip()  # type: ignore
         except Exception:
-            api = None
+            api = ""
 
     base = (
-        st.session_state.get("baseurl")
-        or st.session_state.get("base_url")
-        or st.session_state.get("LLM_BASE_URL")
+        (st.session_state.get("baseurl") or "").strip()
+        or (st.session_state.get("base_url") or "").strip()
+        or (st.session_state.get("LLM_BASE_URL") or "").strip()
     )
     if not base:
         try:
-            if "LLM_BASE_URL" in st.secrets:
-                base = st.secrets["LLM_BASE_URL"]
+            base = (st.secrets.get("LLM_BASE_URL") or "").strip()  # type: ignore
         except Exception:
-            base = None
+            base = ""
+    return (api or None), (base or None)
 
-    return api, base
-
-def _auth_headers() -> dict:
+def _auth_headers(require_api: bool = True) -> dict:
     api, base = _get_llm_creds()
+    if require_api and not api:
+        st.error("❗ 尚未設定 API Key。請在左側「apikey」欄位輸入後再重試。")
+        raise RuntimeError("Missing API Key")
     headers = {}
     if api:
         headers["X-LLM-API-Key"] = api
@@ -52,6 +52,16 @@ def _auth_headers() -> dict:
         headers["X-LLM-Base-URL"] = base  # URL
         headers["X-LLM-Base-Url"] = base  # Url
     return headers
+
+def _show_http_error(resp: requests.Response, action_label: str):
+    # 從後端萃取 detail 訊息
+    detail = None
+    try:
+        j = resp.json()
+        detail = j.get("detail", j)
+    except Exception:
+        detail = resp.text
+    st.error(f"❌ {action_label} 失敗（HTTP {resp.status_code}）\n\n{detail}")
 
 # ====== Low-level HTTP helpers ======
 def _post_file(endpoint: str, uploaded_file, extra_data: dict = None) -> dict:
@@ -63,21 +73,42 @@ def _post_file(endpoint: str, uploaded_file, extra_data: dict = None) -> dict:
             getattr(uploaded_file, "type", None) or "application/octet-stream",
         )
     }
-    resp = requests.post(url, files=files, data=extra_data or {}, headers=_auth_headers(), timeout=300)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = requests.post(url, files=files, data=extra_data or {}, headers=_auth_headers(), timeout=300)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.HTTPError:
+        _show_http_error(resp, f"上傳/轉檔（{endpoint}）")  # type: ignore[arg-type]
+        raise
+    except Exception as e:
+        st.error(f"❌ 請求錯誤：{e}")
+        raise
 
 def _post_json(endpoint: str, payload: dict) -> dict:
     url = f"{_get_backend_url()}{endpoint}"
-    resp = requests.post(url, json=payload, headers=_auth_headers(), timeout=300)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = requests.post(url, json=payload, headers=_auth_headers(), timeout=300)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.HTTPError:
+        _show_http_error(resp, f"呼叫 {endpoint}")  # type: ignore[arg-type]
+        raise
+    except Exception as e:
+        st.error(f"❌ 請求錯誤：{e}")
+        raise
 
 def _get_bytes(endpoint: str) -> bytes:
     url = f"{_get_backend_url()}{endpoint}"
-    resp = requests.get(url, headers=_auth_headers(), timeout=300)
-    resp.raise_for_status()
-    return resp.content
+    try:
+        resp = requests.get(url, headers=_auth_headers(require_api=False), timeout=300)
+        resp.raise_for_status()
+        return resp.content
+    except requests.HTTPError:
+        _show_http_error(resp, f"下載 {endpoint}")  # type: ignore[arg-type]
+        raise
+    except Exception as e:
+        st.error(f"❌ 下載錯誤：{e}")
+        raise
 
 # ====== Pipeline pieces ======
 def convert(uploaded_file) -> dict:
@@ -111,7 +142,7 @@ def do_summary_action(files):
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
         summary_txt = z.read("summary.json")
         mapping_txt = z.read("paragraphs.json")
-    st.success("摘要完成")
+    st.success("✅ 摘要完成")
     st.subheader("摘要（JSON）")
     st.json(json.loads(summary_txt))
     col1, col2, col3 = st.columns(3)
@@ -131,7 +162,7 @@ def do_keywords_action(files):
         zip_bytes = download_bundle(c["job_id"])
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
         kw_txt = z.read("keywords.json")
-    st.success("關鍵字完成")
+    st.success("✅ 關鍵字完成")
     st.subheader("關鍵字（JSON）")
     st.json(json.loads(kw_txt))
     st.download_button("下載全部（zip）", zip_bytes, file_name="bundle.zip", use_container_width=True)
@@ -149,7 +180,7 @@ def do_mindmap_action(files):
         zip_bytes = download_bundle(c["job_id"])
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
         mindmap_pdf = z.read("mindmap.pdf")
-    st.success("心智圖完成")
+    st.success("✅ 心智圖完成")
     st.download_button("下載心智圖（PDF）", mindmap_pdf, file_name="mindmap.pdf", use_container_width=True)
     st.download_button("下載全部（zip）", zip_bytes, file_name="bundle.zip", use_container_width=True)
 
@@ -166,7 +197,7 @@ def do_slides_action(files):
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
         slides_pdf = z.read("slides.pdf")
         slides_pptx = z.read("slides.pptx")
-    st.success("簡報完成")
+    st.success("✅ 簡報完成")
     c1, c2 = st.columns(2)
     c1.download_button("下載簡報（PDF）", slides_pdf, file_name="slides.pdf", use_container_width=True)
     c2.download_button("下載簡報（PPTX）", slides_pptx, file_name="slides.pptx", use_container_width=True)
