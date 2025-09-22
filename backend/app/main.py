@@ -83,7 +83,7 @@ async def api_convert(file: UploadFile = File(...)):
     os.makedirs(outdir, exist_ok=True)
     src_path = await save_upload(file, outdir)
     pdf_path = convert_to_pdf(src_path, outdir)
-    # 轉檔完成後就先打包一次，方便前端立刻下載
+    # 轉檔完成後先打包一次
     _rebuild_zip(jid)
     return {"job_id": jid, "pdf_path": pdf_path}
 
@@ -96,10 +96,16 @@ async def api_summarize(request: Request):
     job_id, pdf_path = data["job_id"], data["pdf_path"]
 
     paras, mapping = extract_paragraphs(pdf_path)
+    # 可能 LLM 回傳空 → 做個保底摘要
     try:
         summary = make_summary(paras)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SUMMARY_ERROR: {e}")
+
+    if not summary or (isinstance(summary, dict) and not summary):
+        # 保底：取前 5 個段落生成簡單摘要
+        head = [p.strip() for p in paras[:5]]
+        summary = {"highlights": head, "note": "fallback-summary"}
 
     outdir = job_dir(job_id)
     map_path = os.path.join(outdir, "paragraphs.json")
@@ -107,9 +113,7 @@ async def api_summarize(request: Request):
     write_json(map_path, mapping)
     write_json(sum_path, summary)
 
-    # ✅ 這裡立即重建 ZIP，前端才能 /download/{job_id} 不會 404
     _rebuild_zip(job_id)
-
     return {"job_id": job_id, "mapping_json": map_path, "summary_json": sum_path}
 
 @app.post("/keywords")
@@ -122,7 +126,7 @@ async def api_keywords(request: Request):
 
     with open(mapping_json, "r", encoding="utf-8") as f:
         mapping = json.load(f)
-    paras = [p["text"] for p in mapping["items"]]
+    paras = [p["text"] for p in mapping.get("items", [])]
     try:
         kw = make_keywords(paras)
     except Exception as e:
@@ -132,9 +136,7 @@ async def api_keywords(request: Request):
     kw_path = os.path.join(outdir, "keywords.json")
     write_json(kw_path, kw)
 
-    # 產生後重建 ZIP
     _rebuild_zip(job_id)
-
     return {"job_id": job_id, "keywords_json": kw_path}
 
 @app.post("/slides")
@@ -155,9 +157,7 @@ async def api_slides(request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SLIDES_ERROR: {e}")
 
-    # 產生後重建 ZIP
     _rebuild_zip(job_id)
-
     return {"job_id": job_id, "slides_pptx": out_pptx, "slides_pdf": out_pdf}
 
 @app.post("/mindmap")
@@ -179,9 +179,7 @@ async def api_mindmap(request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"MINDMAP_ERROR: {e}")
 
-    # 產生後重建 ZIP
     _rebuild_zip(job_id)
-
     return {"job_id": job_id, "mindmap_pdf": out_pdf}
 
 @app.post("/process", response_model=ProcessResponse)
@@ -199,11 +197,14 @@ async def api_process(file: UploadFile = File(...)):
     map_path = os.path.join(outdir, "paragraphs.json")
     write_json(map_path, mapping)
 
-    # 3) Summary
+    # 3) Summary（含保底）
     try:
         summary = make_summary(paras)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SUMMARY_ERROR: {e}")
+    if not summary or (isinstance(summary, dict) and not summary):
+        head = [p.strip() for p in paras[:5]]
+        summary = {"highlights": head, "note": "fallback-summary"}
     sum_path = os.path.join(outdir, "summary.json")
     write_json(sum_path, summary)
 
@@ -230,7 +231,7 @@ async def api_process(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"MINDMAP_ERROR: {e}")
 
-    # 7) Bundle
+    # 7) Bundle（打包）
     bundle_path = _zip_path(jid)
     bundle_zip(outdir, bundle_path)
 
@@ -250,8 +251,8 @@ async def api_process(file: UploadFile = File(...)):
 def download_bundle(job_id: str):
     outdir = job_dir(job_id)
     bundle = _zip_path(job_id)
+    # 若不存在就嘗試重建一次
     if not os.path.exists(bundle):
-        # 若不存在，嘗試重建一次
         try:
             bundle_zip(outdir, bundle)
         except Exception:
