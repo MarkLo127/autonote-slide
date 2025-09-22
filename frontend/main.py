@@ -1,10 +1,4 @@
 import streamlit as st
-from backend_client import (
-    do_summary_action,
-    do_keywords_action,
-    do_mindmap_action,
-    do_slides_action,
-)
 
 def app():
     st.set_page_config(page_title="Autonote&Slide", layout="wide")
@@ -67,8 +61,7 @@ def app():
         )
         left, middle, right = st.columns(3)
         clicked = middle.button("開始摘要整理", use_container_width=True)
-        if clicked:
-            do_summary_action(files)
+      
 
     # ====== 關鍵字擷取 ======
     elif options == "關鍵字擷取":
@@ -83,8 +76,7 @@ def app():
         )
         left, middle, right = st.columns(3)
         clicked = middle.button("開始關鍵字擷取", use_container_width=True)
-        if clicked:
-            do_keywords_action(files)
+       
 
     # ====== 心智圖生成 ======
     elif options == "心智圖生成":
@@ -99,8 +91,7 @@ def app():
         )
         left, middle, right = st.columns(3)
         clicked = middle.button("開始生成心智圖", use_container_width=True)
-        if clicked:
-            do_mindmap_action(files)
+     
 
     # ====== 簡報生成 ======
     elif options == "簡報生成":
@@ -115,8 +106,7 @@ def app():
         )
         left, middle, right = st.columns(3)
         clicked = middle.button("開始生成簡報", use_container_width=True)
-        if clicked:
-            do_slides_action(files)
+    
 
 if __name__ == "__main__":
     app()
