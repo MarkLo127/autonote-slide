@@ -63,6 +63,14 @@ async def _coerce_json(request: Request) -> dict:
         pass
     return dict(request.query_params)
 
+def _zip_path(job_id: str) -> str:
+    return os.path.join(job_dir(job_id), f"{job_id}_bundle.zip")
+
+def _rebuild_zip(job_id: str):
+    outdir = job_dir(job_id)
+    os.makedirs(outdir, exist_ok=True)
+    bundle_zip(outdir, _zip_path(job_id))
+
 # ====== Endpoints ======
 @app.get("/health")
 def health():
@@ -75,6 +83,8 @@ async def api_convert(file: UploadFile = File(...)):
     os.makedirs(outdir, exist_ok=True)
     src_path = await save_upload(file, outdir)
     pdf_path = convert_to_pdf(src_path, outdir)
+    # 轉檔完成後就先打包一次，方便前端立刻下載
+    _rebuild_zip(jid)
     return {"job_id": jid, "pdf_path": pdf_path}
 
 @app.post("/summarize")
@@ -90,10 +100,16 @@ async def api_summarize(request: Request):
         summary = make_summary(paras)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SUMMARY_ERROR: {e}")
-    map_path = os.path.join(job_dir(job_id), "paragraphs.json")
-    sum_path = os.path.join(job_dir(job_id), "summary.json")
+
+    outdir = job_dir(job_id)
+    map_path = os.path.join(outdir, "paragraphs.json")
+    sum_path = os.path.join(outdir, "summary.json")
     write_json(map_path, mapping)
     write_json(sum_path, summary)
+
+    # ✅ 這裡立即重建 ZIP，前端才能 /download/{job_id} 不會 404
+    _rebuild_zip(job_id)
+
     return {"job_id": job_id, "mapping_json": map_path, "summary_json": sum_path}
 
 @app.post("/keywords")
@@ -111,8 +127,14 @@ async def api_keywords(request: Request):
         kw = make_keywords(paras)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"KEYWORDS_ERROR: {e}")
-    kw_path = os.path.join(job_dir(job_id), "keywords.json")
+
+    outdir = job_dir(job_id)
+    kw_path = os.path.join(outdir, "keywords.json")
     write_json(kw_path, kw)
+
+    # 產生後重建 ZIP
+    _rebuild_zip(job_id)
+
     return {"job_id": job_id, "keywords_json": kw_path}
 
 @app.post("/slides")
@@ -125,12 +147,17 @@ async def api_slides(request: Request):
 
     with open(summary_json, "r", encoding="utf-8") as f:
         summary = json.load(f)
-    out_pptx = os.path.join(job_dir(job_id), "slides.pptx")
-    out_pdf  = os.path.join(job_dir(job_id), "slides.pdf")
+    outdir = job_dir(job_id)
+    out_pptx = os.path.join(outdir, "slides.pptx")
+    out_pdf  = os.path.join(outdir, "slides.pdf")
     try:
         make_slides(summary, out_pptx, out_pdf)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SLIDES_ERROR: {e}")
+
+    # 產生後重建 ZIP
+    _rebuild_zip(job_id)
+
     return {"job_id": job_id, "slides_pptx": out_pptx, "slides_pdf": out_pdf}
 
 @app.post("/mindmap")
@@ -145,11 +172,16 @@ async def api_mindmap(request: Request):
         summary = json.load(f)
     with open(keywords_json, "r", encoding="utf-8") as f:
         kw = json.load(f)
-    out_pdf = os.path.join(job_dir(job_id), "mindmap.pdf")
+    outdir = job_dir(job_id)
+    out_pdf = os.path.join(outdir, "mindmap.pdf")
     try:
         make_mindmap(summary, kw, out_pdf)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"MINDMAP_ERROR: {e}")
+
+    # 產生後重建 ZIP
+    _rebuild_zip(job_id)
+
     return {"job_id": job_id, "mindmap_pdf": out_pdf}
 
 @app.post("/process", response_model=ProcessResponse)
@@ -158,13 +190,16 @@ async def api_process(file: UploadFile = File(...)):
     outdir = job_dir(jid)
     os.makedirs(outdir, exist_ok=True)
 
+    # 1) Save & Convert
     src_path = await save_upload(file, outdir)
     pdf_path = convert_to_pdf(src_path, outdir)
 
+    # 2) Parse PDF → paragraphs + mapping
     paras, mapping = extract_paragraphs(pdf_path)
     map_path = os.path.join(outdir, "paragraphs.json")
     write_json(map_path, mapping)
 
+    # 3) Summary
     try:
         summary = make_summary(paras)
     except Exception as e:
@@ -172,6 +207,7 @@ async def api_process(file: UploadFile = File(...)):
     sum_path = os.path.join(outdir, "summary.json")
     write_json(sum_path, summary)
 
+    # 4) Keywords
     try:
         kw = make_keywords(paras)
     except Exception as e:
@@ -179,6 +215,7 @@ async def api_process(file: UploadFile = File(...)):
     kw_path = os.path.join(outdir, "keywords.json")
     write_json(kw_path, kw)
 
+    # 5) Slides (pptx + pdf)
     slides_pptx = os.path.join(outdir, "slides.pptx")
     slides_pdf  = os.path.join(outdir, "slides.pdf")
     try:
@@ -186,13 +223,15 @@ async def api_process(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SLIDES_ERROR: {e}")
 
+    # 6) Mind map (pdf)
     mindmap_pdf = os.path.join(outdir, "mindmap.pdf")
     try:
         make_mindmap(summary, kw, mindmap_pdf)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"MINDMAP_ERROR: {e}")
 
-    bundle_path = os.path.join(outdir, f"{jid}_bundle.zip")
+    # 7) Bundle
+    bundle_path = _zip_path(jid)
     bundle_zip(outdir, bundle_path)
 
     return ProcessResponse(
@@ -210,7 +249,13 @@ async def api_process(file: UploadFile = File(...)):
 @app.get("/download/{job_id}")
 def download_bundle(job_id: str):
     outdir = job_dir(job_id)
-    bundle = os.path.join(outdir, f"{job_id}_bundle.zip")
+    bundle = _zip_path(job_id)
+    if not os.path.exists(bundle):
+        # 若不存在，嘗試重建一次
+        try:
+            bundle_zip(outdir, bundle)
+        except Exception:
+            pass
     if not os.path.exists(bundle):
         raise HTTPException(status_code=404, detail="Bundle not found")
     return FileResponse(bundle, media_type="application/zip", filename=f"{job_id}_bundle.zip")
