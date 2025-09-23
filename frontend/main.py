@@ -15,7 +15,7 @@ def app():
     )
 
     options = st.sidebar.selectbox(
-        "🛠️ 選擇功能", ["摘要整理", "關鍵字擷取", "心智圖生成", "簡報生成"]
+        "🛠️ 選擇功能", ["摘要整理", "關鍵字擷取", "心智圖生成"]
     )
 
     # 文字框：顯示已保存值
@@ -92,21 +92,6 @@ def app():
         left, middle, right = st.columns(3)
         clicked = middle.button("開始生成心智圖", use_container_width=True)
      
-
-    # ====== 簡報生成 ======
-    elif options == "簡報生成":
-        st.markdown(
-            "<h3 style='text-align: center; color: grey;'>簡報生成</h3>",
-            unsafe_allow_html=True,
-        )
-        files = st.file_uploader(
-            "上傳文件",
-            accept_multiple_files=True,
-            type=["pdf", "docx", "doc", "pptx", "ppt", "md", "txt"],
-        )
-        left, middle, right = st.columns(3)
-        clicked = middle.button("開始生成簡報", use_container_width=True)
-    
 
 if __name__ == "__main__":
     app()
