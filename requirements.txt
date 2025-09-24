@@ -2,11 +2,6 @@ streamlit
 fastapi
 uvicorn[standard]
 python-multipart
-pypdf
-python-pptx
 openai
-pydantic
-pydantic-settings
-graphviz
-tenacity
-rich
+pypdf
+python-docx
