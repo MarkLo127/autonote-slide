@@ -2,6 +2,15 @@ streamlit
 fastapi
 uvicorn[standard]
 python-multipart
-openai
+pydantic
+langdetect
+jieba
+nltk
+scikit-learn
+wordcloud
 pypdf
 python-docx
+python-pptx
+markdown
+Pillow
+openai
