@@ -1,71 +1,77 @@
-// API service for FastAPI backend integration
-// Handles file upload, summarization, and keyword extraction
+// API client responsible for communicating with the FastAPI backend
+
+export interface AnalyzeResponse {
+  language: string
+  paragraphs: Array<{
+    index: number
+    text: string
+    start_char: number
+    end_char: number
+  }>
+  global_summary: string
+  paragraph_summaries: Array<{
+    paragraph_index: number
+    summary: string
+  }>
+  paragraph_keywords: Array<{
+    paragraph_index: number
+    keywords: string[]
+  }>
+  wordcloud_image_url: string
+}
 
 class ApiService {
-  private baseUrl: string
+  private readonly fallbackBackendUrl = "http://localhost:8000"
+  private readonly fallbackModel = "gpt-4o-mini"
 
-  constructor() {
-    this.baseUrl = this.getBaseUrl()
-  }
-
-  private getBaseUrl(): string {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("apiBaseUrl") || "http://localhost:8000"
+  private getBackendBaseUrl(): string {
+    if (typeof window === "undefined") {
+      return this.fallbackBackendUrl
     }
-    return "http://localhost:8000"
+    const stored = localStorage.getItem("apiBaseUrl") || this.fallbackBackendUrl
+    return stored.replace(/\/+$/, "") || this.fallbackBackendUrl
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}) {
-    const url = `${this.baseUrl}${endpoint}`
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...options.headers,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("API request failed:", error)
-      throw error
+  private getStored(key: string): string {
+    if (typeof window === "undefined") {
+      return ""
     }
+    return localStorage.getItem(key) || ""
   }
 
-  async uploadFile(file: File): Promise<{ fileId: string; content: string }> {
+  async analyzeFile(file: File): Promise<AnalyzeResponse> {
+    const apiKey = this.getStored("apiKey")
+    if (!apiKey) {
+      throw new Error("請先在設定中填寫 API Key")
+    }
+
+    const backendBaseUrl = this.getBackendBaseUrl()
+    const llmBaseUrl = this.getStored("llmBaseUrl")
+    const llmModel = this.getStored("llmModel") || this.fallbackModel
+
     const formData = new FormData()
     formData.append("file", file)
+    formData.append("llm_api_key", apiKey)
+    formData.append("llm_model", llmModel)
+    if (llmBaseUrl) {
+      formData.append("llm_base_url", llmBaseUrl)
+    }
 
-    const response = await fetch(`${this.baseUrl}/upload`, {
+    const response = await fetch(`${backendBaseUrl}/analyze`, {
       method: "POST",
       body: formData,
     })
 
     if (!response.ok) {
-      throw new Error("File upload failed")
+      const errorText = await response.text()
+      throw new Error(errorText || `分析失敗，狀態碼：${response.status}`)
     }
 
-    return await response.json()
-  }
-
-  async getSummary(fileId: string, language = "auto"): Promise<{ summary: string[] }> {
-    return this.makeRequest("/summarize", {
-      method: "POST",
-      body: JSON.stringify({ fileId, language }),
-    })
-  }
-
-  async getKeywords(fileId: string, language = "auto"): Promise<{ keywords: string[] }> {
-    return this.makeRequest("/keywords", {
-      method: "POST",
-      body: JSON.stringify({ fileId, language }),
-    })
+    const data = (await response.json()) as AnalyzeResponse
+    if (data.wordcloud_image_url?.startsWith("/")) {
+      data.wordcloud_image_url = `${backendBaseUrl}${data.wordcloud_image_url}`
+    }
+    return data
   }
 }
 

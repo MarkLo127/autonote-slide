@@ -3,13 +3,19 @@
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+interface KeywordItem {
+  keyword: string
+  paragraphIndex: number
+}
+
 interface WordCloudProps {
-  keywords: string[]
-  onKeywordHover: (keyword: string) => void
+  keywords: KeywordItem[]
+  wordcloudImageUrl?: string
+  onKeywordHover: (paragraphIndex: number | null) => void
   onToggle: () => void
 }
 
-export function WordCloud({ keywords, onKeywordHover, onToggle }: WordCloudProps) {
+export function WordCloud({ keywords, wordcloudImageUrl, onKeywordHover, onToggle }: WordCloudProps) {
   const getRandomSize = () => {
     const sizes = ["text-sm", "text-base", "text-lg", "text-xl", "text-2xl"]
     return sizes[Math.floor(Math.random() * sizes.length)]
@@ -29,14 +35,21 @@ export function WordCloud({ keywords, onKeywordHover, onToggle }: WordCloudProps
         </Button>
       </div>
 
+      {wordcloudImageUrl && (
+        <div className="mb-4 rounded-xl overflow-hidden bg-black/5">
+          <img src={wordcloudImageUrl} alt="文字雲" className="w-full h-auto object-contain" />
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         {keywords.map((keyword, index) => (
           <span
             key={index}
-            onMouseEnter={() => onKeywordHover(keyword)}
+            onMouseEnter={() => onKeywordHover(keyword.paragraphIndex)}
+            onMouseLeave={() => onKeywordHover(null)}
             className={`${getRandomSize()} ${getRandomColor()} font-medium cursor-pointer hover:text-primary transition-colors duration-200 px-2 py-1 rounded-md hover:bg-primary/10`}
           >
-            {keyword}
+            {keyword.keyword}
           </span>
         ))}
       </div>

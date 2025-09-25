@@ -3,14 +3,17 @@
 import type React from "react"
 
 import { useState, useCallback } from "react"
-import { Upload, FileText, File, Brain, Hash, GitBranch } from "lucide-react"
+import { Upload, FileText, File, Brain, Hash, GitBranch, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface FileUploadProps {
   onFileUpload: (file: File) => void
+  onAnalyze: () => void
+  isProcessing: boolean
+  canAnalyze: boolean
 }
 
-export function FileUpload({ onFileUpload }: FileUploadProps) {
+export function FileUpload({ onFileUpload, onAnalyze, isProcessing, canAnalyze }: FileUploadProps) {
   const [isDragActive, setIsDragActive] = useState(false)
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -43,11 +46,13 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
   }
 
   const handleSummaryGeneration = () => {
-    console.log("摘要生成功能")
+    if (!canAnalyze || isProcessing) return
+    onAnalyze()
   }
 
   const handleKeywordExtraction = () => {
-    console.log("關鍵字截取功能")
+    if (!canAnalyze || isProcessing) return
+    onAnalyze()
   }
 
   const handleMindMapGeneration = () => {
@@ -125,14 +130,16 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button
             onClick={handleSummaryGeneration}
+            disabled={!canAnalyze || isProcessing}
             className="glass-button bg-blue-500/20 hover:bg-blue-500/30 text-blue-600 border-blue-500/30 flex items-center gap-2"
           >
-            <Brain className="w-5 h-5" />
-            摘要生成
+            {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Brain className="w-5 h-5" />}
+            {isProcessing ? "處理中..." : "摘要生成"}
           </Button>
 
           <Button
             onClick={handleKeywordExtraction}
+            disabled={!canAnalyze || isProcessing}
             className="glass-button bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 border-emerald-500/30 flex items-center gap-2"
           >
             <Hash className="w-5 h-5" />
@@ -141,6 +148,7 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
 
           <Button
             onClick={handleMindMapGeneration}
+            disabled
             className="glass-button bg-orange-500/20 hover:bg-orange-500/30 text-orange-600 border-orange-500/30 flex items-center gap-2"
           >
             <GitBranch className="w-5 h-5" />

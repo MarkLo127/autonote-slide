@@ -14,11 +14,23 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(typeof window !== "undefined" ? localStorage.getItem("apiKey") || "" : "")
   const [apiUrl, setApiUrl] = useState(typeof window !== "undefined" ? localStorage.getItem("apiBaseUrl") || "" : "")
+  const [llmModel, setLlmModel] = useState(
+    typeof window !== "undefined" ? localStorage.getItem("llmModel") || "gpt-4o-mini" : "gpt-4o-mini",
+  )
+  const [llmBaseUrl, setLlmBaseUrl] = useState(
+    typeof window !== "undefined" ? localStorage.getItem("llmBaseUrl") || "" : "",
+  )
 
   const handleSave = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem("apiKey", apiKey)
       localStorage.setItem("apiBaseUrl", apiUrl)
+      localStorage.setItem("llmModel", llmModel)
+      if (llmBaseUrl) {
+        localStorage.setItem("llmBaseUrl", llmBaseUrl)
+      } else {
+        localStorage.removeItem("llmBaseUrl")
+      }
     }
     onClose()
   }
@@ -63,6 +75,34 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               className="glass-panel border-glass-border bg-transparent"
             />
             <p className="text-sm text-muted-foreground">&nbsp;</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="llm-model" className="text-foreground">
+              LLM 模型
+            </Label>
+            <Input
+              id="llm-model"
+              placeholder="gpt-4o-mini"
+              value={llmModel}
+              onChange={(e) => setLlmModel(e.target.value)}
+              className="glass-panel border-glass-border bg-transparent"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="llm-base-url" className="text-foreground">
+              LLM Base URL（選填）
+            </Label>
+            <Input
+              id="llm-base-url"
+              type="url"
+              placeholder="https://api.openai.com/v1"
+              value={llmBaseUrl}
+              onChange={(e) => setLlmBaseUrl(e.target.value)}
+              className="glass-panel border-glass-border bg-transparent"
+            />
+            <p className="text-sm text-muted-foreground">若使用自架或代理服務，請在此輸入。</p>
           </div>
         </div>
 
