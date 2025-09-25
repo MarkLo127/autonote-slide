@@ -21,15 +21,17 @@ PREFERRED_KEYWORDS = [
 ]
 
 def _score_font(path: str) -> int:
+    """根據檔名是否包含偏好關鍵字給分，越高越優先。"""
     name = os.path.basename(path)
     score = 0
     for i, kw in enumerate(PREFERRED_KEYWORDS):
         if kw.lower().replace(" ", "") in name.lower().replace(" ", ""):
             score += (len(PREFERRED_KEYWORDS) - i) * 10
-    score += max(0, 50 - len(name))  # 檔名越短加分
+    score += max(0, 50 - len(name))  # 短檔名稍加分
     return score
 
 def _discover_font(root: str) -> Optional[str]:
+    """在 root（含子資料夾）尋找第一個合適字型，依 score 決勝。"""
     if not os.path.isdir(root):
         return None
     candidates = []
@@ -40,21 +42,10 @@ def _discover_font(root: str) -> Optional[str]:
                 candidates.append((p, _score_font(p)))
     if not candidates:
         return None
-    candidates.sort(key=lambda x: (-x[1], x[0]))  # 高分優先，其次字典序
+    candidates.sort(key=lambda x: (-x[1], x[0]))
     return candidates[0][0]
 
-def _normalize(path: Optional[str]) -> Optional[str]:
-    return os.path.abspath(path) if path else None
+DEFAULT_ZH_FONT = _discover_font(FONTS_DIR)
+DEFAULT_EN_FONT = None  # 英文不用指定字型
 
-# 允許環境變數覆寫（最高優先）
-ENV_ZH_FONT = os.getenv("FONT_ZH_PATH")
-DEFAULT_ZH_FONT = _normalize(ENV_ZH_FONT) or _normalize(_discover_font(FONTS_DIR))
-DEFAULT_EN_FONT = None  # 英文不強制指定
-
-# ⚠️ 不主動建立任何資料夾；由實際用到的服務（上傳/文字雲）各自建立即可
-# 友善提示（不拋錯）
-if DEFAULT_ZH_FONT is None:
-    print(
-        "[warn] 未在 assets/fonts/ 找到中文字型（.ttf/.otf/.ttc）。"
-        " 建議放入 Noto Sans TC / Noto Sans CJK，或設環境變數 FONT_ZH_PATH 指向字型檔。"
-    )
+# ✅ 不再顯示「請設 FONT_ZH_PATH」的 warning
