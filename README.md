@@ -14,7 +14,8 @@ pip install -r requirements.txt
 ```
 ### 4. 啟動前端
 ```bash
-streamlit run frontend/main.py
+pnpm -C frontend i
+pnpm -C frontend dev
 ```
 ### 5. 啟動後端
 ```bash
