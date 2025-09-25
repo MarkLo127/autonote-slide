@@ -1,0 +1,65 @@
+.dropzone {
+  border: 2px dashed rgba(63, 137, 255, 0.3);
+  background: linear-gradient(180deg, rgba(63, 137, 255, 0.05), rgba(255, 255, 255, 0.5));
+  border-radius: 32px;
+  padding: 60px 40px;
+  text-align: center;
+  color: var(--color-muted);
+  transition: border var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+.dropzone[data-drag-active='true'] {
+  border-color: rgba(63, 137, 255, 0.7);
+  box-shadow: 0 16px 40px rgba(63, 137, 255, 0.18);
+  background: rgba(63, 137, 255, 0.06);
+}
+
+.icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.description {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.button {
+  padding: 10px 24px;
+  border-radius: 999px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.buttonPrimary {
+  background: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(63, 137, 255, 0.34);
+}
+
+.buttonPrimary:hover {
+  transform: translateY(-1px);
+}
+
+.buttonGhost {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}

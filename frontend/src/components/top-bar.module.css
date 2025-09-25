@@ -1,0 +1,119 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.search {
+  width: 340px;
+  position: relative;
+}
+
+.search input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 10px 40px 10px 44px;
+  font-size: 14px;
+  background: #f7f8fc;
+  transition: border var(--transition);
+}
+
+.search input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: #ffffff;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stat {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.segmented {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #f2f4fb;
+  padding: 4px;
+  gap: 4px;
+}
+
+.segmented button {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--color-muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.segmented button[data-active="true"] {
+  background: #ffffff;
+  color: var(--color-primary);
+  box-shadow: 0 4px 10px rgba(63, 137, 255, 0.18);
+}
+
+.settingsButton {
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border var(--transition), box-shadow var(--transition);
+}
+
+.settingsButton:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 6px 18px rgba(63, 137, 255, 0.15);
+}
+
+.settingsButton:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
