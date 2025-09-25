@@ -4,7 +4,7 @@ from typing import List, Optional
 class LLMSettings(BaseModel):
     api_key: str
     base_url: Optional[str] = None
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-5-mini-2025-08-07"
 
 class Paragraph(BaseModel):
     index: int

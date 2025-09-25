@@ -17,7 +17,7 @@ async def analyze_file(
     file: UploadFile = File(...),
     llm_api_key: str = Form(...),
     llm_base_url: Optional[str] = Form(None),
-    llm_model: str = Form("gpt-4o-mini"),
+    llm_model: str = Form("gpt-5-mini-2025-08-07"),
 ):
     # 1) 儲存上傳
     saved_path = save_upload(file)
