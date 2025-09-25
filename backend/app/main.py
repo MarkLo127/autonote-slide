@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.app.routes import analyze, health
 from backend.app.core.config import STATIC_MOUNT, STATIC_DIR
 
-app = FastAPI(title="Doc Insight API", version="0.1.0")
+app = FastAPI(title="AutoNoteSlide API", version="0.1.0")
 
 # CORS（必要時改成你的前端網域）
 app.add_middleware(
