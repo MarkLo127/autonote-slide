@@ -21,15 +21,11 @@ export interface AnalyzeResponse {
 }
 
 class ApiService {
-  private readonly fallbackBackendUrl = "http://localhost:8000"
+  private readonly backendBaseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000").replace(/\/+$/, "")
   private readonly fallbackModel = "gpt-4o-mini"
 
   private getBackendBaseUrl(): string {
-    if (typeof window === "undefined") {
-      return this.fallbackBackendUrl
-    }
-    const stored = localStorage.getItem("apiBaseUrl") || this.fallbackBackendUrl
-    return stored.replace(/\/+$/, "") || this.fallbackBackendUrl
+    return this.backendBaseUrl
   }
 
   private getStored(key: string): string {
@@ -46,15 +42,15 @@ class ApiService {
     }
 
     const backendBaseUrl = this.getBackendBaseUrl()
-    const llmBaseUrl = this.getStored("llmBaseUrl")
+    const customLlmBaseUrl = this.getStored("baseUrl").trim()
     const llmModel = this.getStored("llmModel") || this.fallbackModel
 
     const formData = new FormData()
     formData.append("file", file)
     formData.append("llm_api_key", apiKey)
     formData.append("llm_model", llmModel)
-    if (llmBaseUrl) {
-      formData.append("llm_base_url", llmBaseUrl)
+    if (customLlmBaseUrl) {
+      formData.append("llm_base_url", customLlmBaseUrl)
     }
 
     const response = await fetch(`${backendBaseUrl}/analyze`, {

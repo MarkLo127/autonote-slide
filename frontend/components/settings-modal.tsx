@@ -5,6 +5,7 @@ import { X, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -12,24 +13,22 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const savedBaseUrl = typeof window !== "undefined" ? localStorage.getItem("baseUrl") || "" : ""
   const [apiKey, setApiKey] = useState(typeof window !== "undefined" ? localStorage.getItem("apiKey") || "" : "")
-  const [apiUrl, setApiUrl] = useState(typeof window !== "undefined" ? localStorage.getItem("apiBaseUrl") || "" : "")
   const [llmModel, setLlmModel] = useState(
     typeof window !== "undefined" ? localStorage.getItem("llmModel") || "gpt-4o-mini" : "gpt-4o-mini",
   )
-  const [llmBaseUrl, setLlmBaseUrl] = useState(
-    typeof window !== "undefined" ? localStorage.getItem("llmBaseUrl") || "" : "",
-  )
+  const [useCustomBaseUrl, setUseCustomBaseUrl] = useState(savedBaseUrl !== "")
+  const [baseUrl, setBaseUrl] = useState(savedBaseUrl)
 
   const handleSave = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem("apiKey", apiKey)
-      localStorage.setItem("apiBaseUrl", apiUrl)
       localStorage.setItem("llmModel", llmModel)
-      if (llmBaseUrl) {
-        localStorage.setItem("llmBaseUrl", llmBaseUrl)
+      if (useCustomBaseUrl && baseUrl.trim()) {
+        localStorage.setItem("baseUrl", baseUrl.trim())
       } else {
-        localStorage.removeItem("llmBaseUrl")
+        localStorage.removeItem("baseUrl")
       }
     }
     onClose()
@@ -63,21 +62,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="api-url" className="text-foreground">
-              baseurl
-            </Label>
-            <Input
-              id="api-url"
-              type="url"
-              placeholder="http://localhost:8000"
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              className="glass-panel border-glass-border bg-transparent"
-            />
-            <p className="text-sm text-muted-foreground">&nbsp;</p>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="llm-model" className="text-foreground">
               LLM 模型
             </Label>
@@ -91,18 +75,34 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="llm-base-url" className="text-foreground">
-              LLM Base URL（選填）
-            </Label>
-            <Input
-              id="llm-base-url"
-              type="url"
-              placeholder="https://api.openai.com/v1"
-              value={llmBaseUrl}
-              onChange={(e) => setLlmBaseUrl(e.target.value)}
-              className="glass-panel border-glass-border bg-transparent"
-            />
-            <p className="text-sm text-muted-foreground">若使用自架或代理服務，請在此輸入。</p>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="use-custom-base-url" className="text-foreground">
+                使用自訂 Base URL
+              </Label>
+              <Switch
+                id="use-custom-base-url"
+                checked={useCustomBaseUrl}
+                onCheckedChange={(checked) => setUseCustomBaseUrl(Boolean(checked))}
+              />
+            </div>
+            {useCustomBaseUrl ? (
+              <div className="space-y-2">
+                <Label htmlFor="base-url" className="text-foreground text-sm">
+                  Base URL
+                </Label>
+                <Input
+                  id="base-url"
+                  type="url"
+                  placeholder="https://your-openai-proxy.example/v1"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  className="glass-panel border-glass-border bg-transparent"
+                />
+                <p className="text-sm text-muted-foreground">請輸入符合 OpenAI API 格式的 Base URL。</p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">未啟用時將使用官方 https://api.openai.com/v1。</p>
+            )}
           </div>
         </div>
 
