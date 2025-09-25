@@ -8,13 +8,15 @@ git clone https://github.com/MarkLo127/autonote-slide.git
 ```bash
 cd autonote-slide
 ```
-### 3. 安裝與啟動前端
+### 3. 安裝套件
 ```bash
-pnpm -C frontend i
-pnpm -C frontend dev
+pip install -r requirements.txt
+```
+### 4.啟動前端
+```bash
+streamlit run frontend/main.py
 ```
 ### 4. 安裝與啟動後端
 ```bash
-pip install -r backend/requirements.txt
 python -m backend
 ```
