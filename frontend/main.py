@@ -71,6 +71,7 @@ def app():
         "🗝️ apikey",
         value=st.session_state.get("api", ""),
         placeholder="🗝️ 輸入apikey",
+        type="password",           # ← 重要：輸入時隱藏
     )
     baseurl = st.sidebar.text_input(
         "🔗 baseurl",
@@ -85,11 +86,10 @@ def app():
         st.session_state["baseurl"] = baseurl.strip()
 
     save = st.sidebar.button("儲存", use_container_width=True)
-    reset = st.sidebar.button("重置", use_container_width=True)
-
     if save:
         st.success("已儲存 API 設定")
-
+        
+    reset = st.sidebar.button("重置", use_container_width=True)
     if reset:
         st.session_state.pop("api", None)
         st.session_state.pop("baseurl", None)
