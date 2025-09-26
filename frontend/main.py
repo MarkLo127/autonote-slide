@@ -1,5 +1,5 @@
 import streamlit as st
-from pkg import DocAnalyzer
+
 
 def app():
     st.set_page_config(page_title="Autonote&Slide", layout="wide")
