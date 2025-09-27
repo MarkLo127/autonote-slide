@@ -1,10 +1,3 @@
-# frontend/backend_client.py
-# 說明：
-# - 這是「方案 A」：在檔案最前面自動尋找專案根目錄並加入 sys.path，
-#   讓 `from backend.app...` 的匯入在以 `streamlit run frontend/main.py` 執行時能成功。
-# - 其餘程式碼保持你的原本邏輯與介面，不更動對外呼叫方式。
-# - 對外提供 class process，包含 analyze_document 與三個 render_*_view。
-
 # === 1) 自動尋找含 backend/ 的專案根目錄，加入 sys.path ===
 import sys
 from pathlib import Path
