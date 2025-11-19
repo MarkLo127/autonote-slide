@@ -1,0 +1,243 @@
+import asyncio
+import json
+import os
+from typing import Optional
+from enum import Enum
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+
+from backend.app.models.schemas import AnalyzeResponse, LLMSettings, PageSummary, Paragraph
+from backend.app.services.analyze.page_classifier import classify_page
+from backend.app.services.analyze.page_parser import parse_pages
+from backend.app.services.analyze.summary_engine import SummaryEngine, SYSTEM_PROMPT
+from backend.app.services.nlp.language_detect import detect_lang, determine_visual_language
+from backend.app.services.nlp.keyword_extractor import extract_keywords_by_paragraph
+from backend.app.services.storage import make_public_url, save_upload
+from backend.app.services.wordcloud.wordcloud_gen import build_wordcloud
+
+router = APIRouter(prefix="/analyze", tags=["analyze"])
+
+class AnalysisLevel(str, Enum):
+    LIGHT = "light"
+    MEDIUM = "medium"
+    DEEP = "deep"
+
+@router.post("")
+async def analyze_file(
+    file: UploadFile = File(...),
+    llm_api_key: str = Form(...),
+    llm_base_url: Optional[str] = Form(None),
+    analysis_level: AnalysisLevel = Form(AnalysisLevel.MEDIUM),
+    enable_vision: bool = Form(False),  # 是否啟用圖片分析
+):
+    if not file.filename:
+        raise HTTPException(400, "檔案名稱缺失，請重新上傳。")
+
+    try:
+        content = await file.read()
+    finally:
+        await file.close()
+
+    async def generator(content: bytes, filename: str):
+        queue = asyncio.Queue()
+
+        async def push_event(payload: dict):
+            await queue.put(json.dumps(payload, ensure_ascii=False) + "\n")
+
+        async def run_summarizer():
+            try:
+                await push_event({"type": "progress", "progress": 5, "message": "開始儲存檔案"})
+                saved_path = save_upload(content, filename)
+                await push_event({"type": "progress", "progress": 12, "message": "檔案儲存完成"})
+
+                # 先確定模型配置
+                model_map = {
+                    AnalysisLevel.LIGHT: "gpt-5-nano-2025-08-07",
+                    AnalysisLevel.MEDIUM: "gpt-5-mini-2025-08-07",
+                    AnalysisLevel.DEEP: "gpt-5.1-2025-11-13",
+                }
+                llm_model = model_map[analysis_level]
+
+                # 使用 from_model 自動配置，並支援 Vision
+                settings = LLMSettings.from_model(
+                    api_key=llm_api_key,
+                    base_url=llm_base_url,
+                    model=llm_model,
+                    enable_vision=enable_vision
+                )
+                
+                # 調試日誌
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"API 請求配置: model={llm_model}, "
+                           f"max_requests_per_minute={settings.max_requests_per_minute}, "
+                           f"concurrency={settings.concurrency}, "
+                           f"request_delay={settings.request_delay}")
+
+                _, ext = os.path.splitext(filename)
+                try:
+                    # 如果啟用 Vision，創建 vision_analyzer
+                    vision_analyzer = None
+                    vision_settings = None
+                    if settings.enable_vision:
+                        from backend.app.services.analyze.vision_analyzer import VisionAnalyzer
+                        from openai import AsyncOpenAI
+                        
+                        vision_client = AsyncOpenAI(
+                            api_key=llm_api_key,
+                            base_url=llm_base_url
+                        )
+                        vision_analyzer = VisionAnalyzer(
+                            client=vision_client,
+                            model=settings.vision_model
+                        )
+                        vision_settings = {
+                            'min_image_width': settings.min_image_width,
+                            'min_image_height': settings.min_image_height,
+                            'min_image_size_kb': settings.min_image_size_kb,
+                            'max_images_per_page': settings.max_images_per_page
+                        }
+                    
+                    pages = parse_pages(saved_path, ext, vision_analyzer, vision_settings)
+                except ValueError as exc:
+                    raise HTTPException(400, str(exc)) from exc
+
+                await push_event(
+                    {
+                        "type": "progress",
+                        "progress": 28,
+                        "message": f"完成文字解析，共 {len(pages)} 頁",
+                    }
+                )
+
+                classified = [classify_page(page.page_number, page.text) for page in pages]
+                await push_event(
+                    {
+                        "type": "progress",
+                        "progress": 35,
+                        "message": "頁面判定完成",
+                    }
+                )
+
+                engine = SummaryEngine(settings=settings)
+
+                total_pages = len(classified)
+                completed_pages = 0
+
+                async def page_progress(_: int):
+                    nonlocal completed_pages
+                    completed_pages += 1
+                    base = 35
+                    span = 50
+                    percent = base + int(span * completed_pages / max(1, total_pages))
+                    await push_event(
+                        {
+                            "type": "progress",
+                            "progress": min(percent, 90),
+                            "message": f"完成第 {completed_pages}/{total_pages} 頁摘要",
+                        }
+                    )
+
+                page_results = await engine.summarize_pages(classified, progress_callback=page_progress)
+
+                await push_event(
+                    {
+                        "type": "progress",
+                        "progress": 92,
+                        "message": "彙整全局摘要",
+                    }
+                )
+
+                global_summary = await engine.summarize_global(page_results)
+
+                joined_text = "\n".join(page.text for page in pages)
+                language = detect_lang(joined_text)
+                visual_language = determine_visual_language(joined_text, language)
+
+                paragraph_objs = [
+                    Paragraph(index=idx, text=page.text or "", start_char=0, end_char=len(page.text or ""))
+                    for idx, page in enumerate(pages)
+                ]
+                paragraph_keywords = extract_keywords_by_paragraph(paragraph_objs, language)
+                keyword_lookup = {item["paragraph_index"]: item["keywords"] for item in paragraph_keywords}
+
+                visual_keywords = (
+                    paragraph_keywords
+                    if visual_language == language
+                    else extract_keywords_by_paragraph(paragraph_objs, visual_language)
+                )
+
+                wordcloud_url = None
+                try:
+                    wc_path = build_wordcloud(visual_keywords, visual_language, joined_text)
+                    wordcloud_url = make_public_url(wc_path)
+                except Exception as exc:  # pylint: disable=broad-except
+                    reason = "文字雲生成失敗"
+                    if isinstance(exc, RuntimeError) and "不足" in str(exc):
+                        reason = "文字雲素材不足"
+                    await push_event(
+                        {
+                            "type": "progress",
+                            "progress": 95,
+                            "message": f"{reason}：{exc}",
+                        }
+                    )
+
+                response_payload = AnalyzeResponse(
+                    language=language,
+                    total_pages=total_pages,
+                    page_summaries=[
+                        PageSummary(
+                            page_number=result.page_number,
+                            classification=result.classification,
+                            bullets=result.bullets,
+                            keywords=keyword_lookup.get(result.page_number - 1, []),
+                            skipped=result.skipped,
+                            skip_reason=result.skip_reason,
+                        )
+                        for result in page_results
+                    ],
+                    global_summary=global_summary,
+                    system_prompt=SYSTEM_PROMPT,
+                    wordcloud_image_url=wordcloud_url,
+                )
+
+                await push_event(
+                    {
+                        "type": "result",
+                        "progress": 100,
+                        "message": "分析完成",
+                        "data": response_payload.model_dump(mode="json"),
+                    }
+                )
+            except HTTPException as exc:
+                await push_event(
+                    {
+                        "type": "error",
+                        "progress": 100,
+                        "message": exc.detail,
+                    }
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                await push_event(
+                    {
+                        "type": "error",
+                        "progress": 100,
+                        "message": f"分析失敗：{exc}",
+                    }
+                )
+            finally:
+                await queue.put(None)
+
+        summarizer_task = asyncio.create_task(run_summarizer())
+
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield event
+
+        await summarizer_task
+
+    return StreamingResponse(generator(content, file.filename), media_type="application/x-ndjson")

@@ -1,0 +1,14 @@
+python-dotenv
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+langdetect
+jieba
+nltk
+scikit-learn
+wordcloud
+PyMuPDF
+Pillow
+openai
+graphviz
