@@ -1,5 +1,7 @@
 # AutoNote&Slide - 技術文檔
 
+https://autonote-app.zeabur.app
+
 ## 📋 專案概述
 
 **AutoNote&Slide** 是一個智能文件分析與摘要生成系統，能自動將 PDF 文件轉換為結構化的摘要報告，並生成視覺化的文字雲。系統支援多語言文檔分析。
