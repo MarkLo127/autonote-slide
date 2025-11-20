@@ -147,7 +147,6 @@ wordcloud = generate_wordcloud(keywords, language)
 **關鍵字提取演算法**
 - 中文：jieba 分詞 + TF-IDF
 - 英文：NLTK + 停用詞過濾
-- 支援多語言混合文檔
 
 ### 2. 前端架構 (Next.js)
 
@@ -159,9 +158,7 @@ frontend/
 │   ├── app/
 │   │   ├── layout.tsx          # 根佈局
 │   │   ├── page.tsx            # 首頁（上傳介面）
-│   │   └── page-summary/
-│   │       └── viewer/
-│   │           └── page.tsx    # 結果查看器
+│   │   └── globals.css
 │   └── lib/
 │       └── generateAnalysisPdf.ts  # PDF 報告生成
 ├── public/                     # 靜態資源
