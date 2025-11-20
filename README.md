@@ -231,12 +231,27 @@ services:
       NEXT_PUBLIC_BACKEND_URL: http://backend:8000
 ```
 
+## 本地部署
+### 前端
+```bash
+pnpm -C frontend i
+pnpm -C frontend dev
+```
+
+### 後端
+```bash
+conda create -n autonote python=3.12
+conda activate autonote
+pip install -r backend/requirements.txt
+python -m backend
+```
+
 ### 環境變數配置
 
 **後端**
 - `ALLOWED_ORIGINS`: CORS 允許來源
 - `MAX_BODY_MB`: 上傳大小限制（預設 50MB）
-- `OPENAI_API_KEY`: OpenAI API 金鑰（可選）
+- `OPENAI_API_KEY`: OpenAI API 金鑰
 
 **前端**
 - `NEXT_PUBLIC_BACKEND_URL`: 後端 API 端點
