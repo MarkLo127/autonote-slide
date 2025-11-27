@@ -193,9 +193,15 @@ class PageDetailedAnalysis:
         # 清理函數：移除TOON標籤
         def clean_toon_labels(text: str) -> str:
             import re
-            # 移除 TOON 標籤如 "page_summary: |" 等
-            text = re.sub(r'^\s*(page_summary|key_findings|data_points|risks_opportunities)\s*:\s*\|?\s*$', '', text, flags=re.MULTILINE)
-            text = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities)\s*:\s*\|', '', text)
+            # 移除所有 TOON 格式標籤和結構
+            # 1. 移除完整的 TOON 標籤行（如 "key_findings: |"）
+            text = re.sub(r'^\s*(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|?\s*$', '', text, flags=re.MULTILINE)
+            # 2. 移除內聯的 TOON 標籤（如文本中間出現的 "key_findings: |"）
+            text = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', text)
+            # 3. 移除 YAML/TOON 格式的縮排標記
+            text = re.sub(r'^\s{2,}', '', text, flags=re.MULTILINE)
+            # 4. 移除連續多個空行
+            text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
             return text.strip()
         
         # 合併四個維度為單一 bullet（用於舊版兼容）
@@ -582,7 +588,24 @@ class SummaryEngine:
             try:
                 overview_text = await self._chat_simple(SYSTEM_PROMPT, overview_prompt)
                 if len(overview_text) < 100:  # 太短，使用fallback
-                    overview_text = "本文檔涵蓋多個主題。" + (page_summaries[0][:300] if page_summaries else "")
+                    # 從第一頁摘要中提取內容，確保移除TOON標籤並智能截斷到完整句子
+                    if page_summaries:
+                        import re
+                        first_page = page_summaries[0]
+                        # 移除【第X頁】前綴
+                        first_page = re.sub(r'^【第\d+頁】', '', first_page)
+                        # 清理可能的TOON標籤
+                        first_page = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_page)
+                        first_page = first_page.strip()
+                        # 智能截斷到完整句子（找最後一個句號、問號或感嘆號）
+                        truncated = first_page[:300]
+                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
+                        last_sentence_end = max(sentence_ends)
+                        if last_sentence_end > 50:  # 至少有50字的完整句子
+                            truncated = truncated[:last_sentence_end + 1]
+                        overview_text = "本文檔涵蓋多個主題。" + truncated
+                    else:
+                        overview_text = "本文檔涵蓋多個主題。"
                 overview_text = self._trim_to_limit(overview_text, 600)
                 logger.info(f"生成全局總覽: {len(overview_text)} 字")
             except Exception as e:
@@ -611,7 +634,20 @@ class SummaryEngine:
             try:
                 key_conclusions = await self._chat_simple(SYSTEM_PROMPT, conclusions_prompt)
                 if len(key_conclusions) < 50:
-                    key_conclusions = "核心發現包括：" + (key_findings[0][:200] if key_findings else "請參考逐頁分析。")
+                    # 智能fallback：提取第一個發現並截斷到完整句子
+                    if key_findings:
+                        import re
+                        first_finding = key_findings[0]
+                        first_finding = re.sub(r'^【第\d+頁】', '', first_finding)
+                        first_finding = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_finding).strip()
+                        truncated = first_finding[:200]
+                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
+                        last_sentence_end = max(sentence_ends)
+                        if last_sentence_end > 30:
+                            truncated = truncated[:last_sentence_end + 1]
+                        key_conclusions = "核心發現包括：" + truncated
+                    else:
+                        key_conclusions = "請參考逐頁分析。"
                 key_conclusions = self._trim_to_limit(key_conclusions, 400)
                 logger.info(f"生成關鍵結論: {len(key_conclusions)} 字")
             except Exception as e:
@@ -640,7 +676,20 @@ class SummaryEngine:
             try:
                 core_data = await self._chat_simple(SYSTEM_PROMPT, data_prompt)
                 if len(core_data) < 50:
-                    core_data = "關鍵數據包括：" + (data_points[0][:200] if data_points else "請參考逐頁分析。")
+                    # 智能fallback
+                    if data_points:
+                        import re
+                        first_data = data_points[0]
+                        first_data = re.sub(r'^【第\d+頁】', '', first_data)
+                        first_data = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_data).strip()
+                        truncated = first_data[:200]
+                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
+                        last_sentence_end = max(sentence_ends)
+                        if last_sentence_end > 30:
+                            truncated = truncated[:last_sentence_end + 1]
+                        core_data = "關鍵數據包括：" + truncated
+                    else:
+                        core_data = "請參考逐頁分析。"
                 core_data = self._trim_to_limit(core_data, 400)
                 logger.info(f"生成核心數據: {len(core_data)} 字")
             except Exception as e:
@@ -669,7 +718,20 @@ class SummaryEngine:
             try:
                 risks_and_actions = await self._chat_simple(SYSTEM_PROMPT, risks_prompt)
                 if len(risks_and_actions) < 50:
-                    risks_and_actions = "主要風險包括：" + (risks_opportunities[0][:200] if risks_opportunities else "請參考逐頁分析。")
+                    # 智能fallback
+                    if risks_opportunities:
+                        import re
+                        first_risk = risks_opportunities[0]
+                        first_risk = re.sub(r'^【第\d+頁】', '', first_risk)
+                        first_risk = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_risk).strip()
+                        truncated = first_risk[:200]
+                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
+                        last_sentence_end = max(sentence_ends)
+                        if last_sentence_end > 30:
+                            truncated = truncated[:last_sentence_end + 1]
+                        risks_and_actions = "主要風險包括：" + truncated
+                    else:
+                        risks_and_actions = "請參考逐頁分析。"
                 risks_and_actions = self._trim_to_limit(risks_and_actions, 400)
                 logger.info(f"生成風險與建議: {len(risks_and_actions)} 字")
             except Exception as e:
