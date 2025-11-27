@@ -75,98 +75,208 @@ PAGE_PROMPT_TEMPLATE = """
 
 PAGE_INSTRUCTIONS = """
 ## 任務要求
-請將上述內容精煉為一段完整的文字總結，需符合以下標準：
+請對上述內容進行多維度深入分析，生成以下四個部分的結構化內容：
 
-### 內容規範
-- **長度控制**：200-500 個全形字（約 3-6 句完整段落）
-- **結構完整**：須包含開頭、主體與結尾，邏輯連貫不可戛然而止
-- **資訊整合**：融合該頁所有重點（策略結論、量化數據、風險警示、行動方案）
-- **數據完整**：必須保留數值、單位、時間範圍及對比基準
-- **流暢自然**：使用連接詞（例如：此外、同時、進而）使段落更連貫
+### 1. 頁面總覽 (page_summary: 200-300字)
+- **目的**：概括本頁的主要內容、主題與脈絡
+- **內容**：
+  - 本頁討論的核心主題是什麼？
+  - 屬於文件的哪個部分（如財務報表、市場分析、風險披露等）？
+  - 主要涵蓋哪些方面的資訊？
+- **風格**：宏觀視角，提供整體框架理解
+- **要求**：完整段落，流暢連貫，不可使用列點
 
-### 禁止事項
-- 不使用條列符號（•、-、數字編號）
-- 不分點或分段描述，必須是單一連貫段落
-- 不引用圖表編號或章節標題
-- 不添加原文未提及的推測或建議
-- 不可使用省略號或未完成的句子
+### 2. 關鍵發現 (key_findings: 150-250字)
+- **目的**：提煉本頁最重要的結論、洞察或核心觀點
+- **內容**：
+  - 本頁最值得關注的發現是什麼？
+  - 有哪些重要的結論或判斷？
+  - 揭示了什麼趨勢或模式？
+- **風格**：聚焦核心，突出關鍵洞察
+- **要求**：完整段落，直指重點，避免贅述
+
+### 3. 核心數據 (data_points: 150-250字)
+- **目的**：列出本頁的重要量化指標、數值與比較
+- **內容**：
+  - 關鍵的財務數據或業務指標有哪些？
+  - 數值的時間範圍、單位、對比基準是什麼？
+  - 呈現什麼增長、下降或變化趨勢？
+- **風格**：數據導向，精確呈現量化資訊
+- **要求**：完整段落，保留所有數值細節
+
+### 4. 風險與機會 (risks_opportunities: 150-250字)
+- **目的**：識別本頁提及的潛在風險、警示或機會
+- **內容**：
+  - 提到哪些風險因素或挑戰？
+  - 有哪些警示性陳述或不確定性？
+  - 揭示了什麼機會或正面因素？
+- **風格**：風險導向，關注需要警惕的要點
+- **要求**：完整段落，明確指出風險與機會
 
 ### 輸出格式（TOON）
 ```
-page_summary:
-  summary: |
-    這里是一段完整的文字總結，涵蓋所有重點與核心發現。內容應該流暢自然，邏輯清晰，包含具體數據與結論。整個段落必須完整表達，不可在中途戛然而止。
+page_detailed_analysis:
+  page_summary: |
+    本頁為XX章節的XX部分，主要討論...（200-300字完整段落）
+  key_findings: |
+    本頁最關鍵的發現是...此外...（150-250字完整段落）
+  data_points: |
+    財務數據顯示...同時...（150-250字完整段落）
+  risks_opportunities: |
+    潛在風險包括...另一方面...（150-250字完整段落）
 ```
 
-### 寫作範例
-好的總結應該像這樣：
-「本頁揭示公司 2024 年第三季營收達 150 億美元，較去年同期成長 23%，主要受惠於亞太區需求強勁。此外，毛利率提升至 42%，顯示成本控制成效顯著。然而，管理層警告第四季可能面臨供應鏈壓力，預計將影響出貨時程，建議提前備貨以降低風險。」
+### 品質標準
+- **禁止條列式**：所有四個部分都必須是連貫段落，不可使用符號或編號分點
+- **語氣專業**：採用商業分析語彙，避免口語化
+- **基於原文**：嚴格基於本頁內容，不添加外部知識或推測
+- **結構完整**：每個段落都需有開頭、主體與結尾，邏輯清晰
+- **長度符合**：各維度嚴格控制在指定字數範圍內
+
+### 注意事項
+- 如果某個維度在本頁中沒有相關內容，可用「本頁未涉及此維度的具體資訊」簡要說明
+- 確保四個維度不重複相同內容，各有側重點
+- 使用連接詞使段落流暢（例如：此外、同時、然而、進而）
 """
+
 
 GLOBAL_PROMPT_TEMPLATE = """
 ## 全局彙整任務
 
+您將收到來自文件各頁面的四個維度分析結果。請基於這些分類輸入，生成針對性的全局彙整。
+
 ### 輸入資料
-以下為各頁面提煉的核心重點：
-{page_points}
+
+#### 【頁面總覽彙總】
+{page_summaries}
+
+#### 【關鍵發現彙總】
+{key_findings}
+
+#### 【核心數據彙總】
+{data_points}
+
+#### 【風險與機會彙總】
+{risks_opportunities}
+
+---
 
 ### 輸出要求
 
-#### 1. 執行摘要 (overview)
-- **數量**：5-7 條關鍵洞察
-- **長度**：每條 60-120 全形字
-- **總計**：合計至少 300 字
-- **內容**：跨頁綜合分析，非單純彙總
-- **風格**：決策層級視角，直指核心議題
+請生成以下四個全局分析段落，每個段落基於對應的維度輸入：
 
-#### 2. 深度分析 (expansions)
-提供三個主題的展開論述，每項 200-400 字：
+#### 1. 全局總結 (overview: 300-600字)
+- **輸入來源**：基於「頁面總覽彙總」
+- **目的**：從宏觀視角綜述整份文件的核心內容與意義
+- **內容要求**：
+  - 整份文件的主要主題與目的是什麼？
+  - 文件的整體結構與邏輯是怎樣的？
+  - 涵蓋哪些關鍵領域或板塊？
+  - 對讀者或决策者的意義何在？
+- **風格**：高層次綜述，提供完整全景視圖
+- **格式**：單一連貫段落，300-600字
 
-a) **戰略結論 (key_conclusions)**
-   - 核心發現與策略意涵
-   - 必須標註來源頁碼（格式：〔p.3〕或〔p.5-7〕）
-   - 強調因果關係與業務影響
+#### 2. 關鍵結論 (key_conclusions: 200-400字)
+- **輸入來源**：基於「關鍵發現彙總」
+- **目的**：提煉跨頁面的核心洞察與戰略意涵
+- **內容要求**：
+  - 跨頁面整合後最重要的發現是什麼？
+  - 呈現什麼整體趨勢或模式？
+  - 對業務或策略有什麼重要啟示？
+  - 必須標註來源頁碼（格式：〔p.3〕或〔p.5-7〕）
+- **風格**：聚焦核心，突出關鍵洞察
+- **格式**：單一連貫段落，200-400字
 
-b) **關鍵數據 (core_data)**
-   - 重要量化指標與趨勢
-   - 完整呈現數值、單位、時間與對比
-   - 註明數據出處頁碼
+#### 3. 核心數據與依據 (core_data: 200-400字)
+- **輸入來源**：基於「核心數據彙總」
+- **目的**：整合重要量化指標，呈現數據全貌與趨勢
+- **內容要求**：
+  - 最關鍵的財務或業務指標有哪些？
+  - 數據呈現什麼整體趨勢或變化？
+  - 各項指標之間有什麼關聯或對比？
+  - 必須保留完整數值、單位、時間與頁碼標記
+- **風格**：數據導向，精確量化
+- **格式**：單一連貫段落，200-400字
 
-c) **風險與行動 (risks_and_actions)**
-   - 潛在風險與應對建議
-   - 明確可執行的行動方案
-   - 標示相關頁碼參照
+#### 4. 風險與建議 (risks_and_actions: 200-400字)
+- **輸入來源**：基於「風險與機會彙總」
+- **目的**：識別主要風險並提出針對性建議
+- **內容要求**：
+  - 文件揭示的主要風險因素有哪些？
+  - 哪些不確定性或挑戰需要特別關注？
+  - 有哪些機會或正面因素？
+  - 建議採取什麼行動或決策？
+  - 必須標示相關頁碼參照
+- **風格**：風險導向，提供可執行建議
+- **格式**：單一連貫段落，200-400字
 
 ### 輸出格式（TOON）
 ```
 global_summary:
-  overview[7]: |
-    第一條執行摘要的完整內容
-    第二條執行摘要的完整內容
-    第三條執行摘要的完整內容
-    第四條執行摘要的完整內容
-    第五條執行摘要的完整內容
-    第六條執行摘要的完整內容
-    第七條執行摘要的完整內容
+  overview: |
+    本文件為XX公司的XX報告，主要涵蓋...整體而言...（300-600字完整段落）
   expansions:
     key_conclusions: |
-      戰略結論的完整段落內容（200-400字）
-      務必包含來源頁碼標記〔p.x〕
-      表達需完整，不可草率收尾
+      跨頁面分析顯示...核心發現包括...〔p.5-7〕...綜合來看...（200-400字完整段落）
     core_data: |
-      關鍵數據的完整段落內容（200-400字）
-      包含數值、單位、時間與頁碼標記
+      財務數據方面...〔p.3〕...同時...〔p.15-18〕...整體趨勢...（200-400字完整段落）
     risks_and_actions: |
-      風險與行動的完整段落內容（200-400字）
-      明確指出風險點與具體行動方案
+      主要風險因素包括...〔p.22〕...此外...建議...（200-400字完整段落）
 ```
 
 ### 品質標準
-- 語氣明確果斷，避免模糊表述（「可能」「也許」等）
-- 結論需基於實證，不做無根據推測
-- 段落結構完整，邏輯清晰連貫
-- 每段必須自然收尾，不可戛然而止
+- **禁止條列式**：所有內容必須是連貫段落，不可使用編號或符號分點
+- **針對性強**：每個維度嚴格基於對應的輸入來源，避免資訊混雜
+- **跨頁整合**：綜合多個頁面的資訊，提煉整體觀點而非簡單堆砌
+- **語氣明確**：避免模糊表述（「可能」「也許」等），基於實證下結論
+- **結構完整**：每個段落都需邏輯清晰連貫，自然收尾
+- **頁碼標註**：在擴充分析中必須標註來源頁碼
 """
+
+
+@dataclass
+class PageDetailedAnalysis:
+    """頁面詳細分析結果（四維度結構化）"""
+    page_number: int
+    classification: str
+    page_summary: str           # 頁面總覽（200-300字）
+    key_findings: str           # 關鍵發現（150-250字）
+    data_points: str            # 核心數據（150-250字）
+    risks_opportunities: str    # 風險與機會（150-250字）
+    skipped: bool = False
+    skip_reason: Optional[str] = None
+    
+    def to_legacy_format(self) -> "PageSummaryResult":
+        """轉換為舊格式以保持向後兼容"""
+        if self.skipped:
+            return PageSummaryResult(
+                page_number=self.page_number,
+                classification=self.classification,
+                bullets=[f"〔p.{self.page_number}〕{self.skip_reason or '本頁跳過'}"],
+                skipped=True,
+                skip_reason=self.skip_reason
+            )
+        
+        # 合併四個維度為單一 bullet（用於舊版兼容）
+        combined_parts = []
+        if self.page_summary:
+            combined_parts.append(f"【總覽】{self.page_summary}")
+        if self.key_findings:
+            combined_parts.append(f"【發現】{self.key_findings}")
+        if self.data_points:
+            combined_parts.append(f"【數據】{self.data_points}")
+        if self.risks_opportunities:
+            combined_parts.append(f"【風險】{self.risks_opportunities}")
+        
+        combined = "\n\n".join(combined_parts) if combined_parts else "（無內容）"
+        
+        return PageSummaryResult(
+            page_number=self.page_number,
+            classification=self.classification,
+            bullets=[f"〔p.{self.page_number}〕{combined}"],
+            skipped=False,
+            skip_reason=None
+        )
 
 
 @dataclass
@@ -291,8 +401,23 @@ class SummaryEngine:
             # 解析 TOON 格式
             parsed = {}
             
-            # 檢查是否為 page_summary 格式（段落或列表）
-            if 'page_summary' in content or 'summary:' in content or 'bullets[' in content:
+            # 檢查是否為 page_detailed_analysis 格式（四維度頁面分析）
+            if 'page_detailed_analysis' in content:
+                page_summary = self._parse_toon_multiline(content, 'page_summary')
+                key_findings = self._parse_toon_multiline(content, 'key_findings')
+                data_points = self._parse_toon_multiline(content, 'data_points')
+                risks_opportunities = self._parse_toon_multiline(content, 'risks_opportunities')
+                
+                parsed = {
+                    "page_summary": page_summary,
+                    "key_findings": key_findings,
+                    "data_points": data_points,
+                    "risks_opportunities": risks_opportunities
+                }
+                logger.info(f"解析 page_detailed_analysis: 總覽 {len(page_summary)} 字、發現 {len(key_findings)} 字、數據 {len(data_points)} 字、風險 {len(risks_opportunities)} 字")
+            
+            # 檢查是否為 page_summary 格式（段落或列表 - 舊格式向後兼容）
+            elif 'page_summary' in content or 'summary:' in content or 'bullets[' in content:
                 # 嘗試解析段落格式（summary: |\n ...）
                 summary = self._parse_toon_multiline(content, 'summary')
                 if summary:
@@ -306,8 +431,9 @@ class SummaryEngine:
                     logger.info(f"解析 page_summary 列表: {len(bullets)} 條要點")
             
             # 檢查是否為 global_summary 格式
-            elif 'global_summary' in content or 'overview[' in content:
-                overview = self._parse_toon_bullets(content.replace('overview[', 'bullets['))
+            elif 'global_summary' in content or 'overview:' in content or 'overview[' in content:
+                # 解析 overview 段落（現在是單一段落而非列表）
+                overview = self._parse_toon_multiline(content, 'overview')
                 
                 # 解析三個擴充段落
                 key_conclusions = self._parse_toon_multiline(content, 'key_conclusions')
@@ -315,14 +441,14 @@ class SummaryEngine:
                 risks_and_actions = self._parse_toon_multiline(content, 'risks_and_actions')
                 
                 parsed = {
-                    "overview": overview,
+                    "overview": overview,  # 現在是字串而非列表
                     "expansions": {
                         "key_conclusions": key_conclusions,
                         "core_data": core_data,
                         "risks_and_actions": risks_and_actions
                     }
                 }
-                logger.info(f"解析 global_summary: {len(overview)} 條 overview")
+                logger.info(f"解析 global_summary: overview {len(overview)} 字")
             else:
                 # Fallback: 嘗試當作純文字切分
                 logger.warning("無法識別 TOON 格式，嘗試 fallback 解析")
@@ -337,16 +463,20 @@ class SummaryEngine:
             return {}
 
 
-    async def summarize_page(self, page: ClassifiedPage) -> PageSummaryResult:
+    async def summarize_page(self, page: ClassifiedPage) -> PageDetailedAnalysis:
+        """生成頁面的四維度詳細分析"""
         if page.classification in SKIP_CLASS_LABELS and page.classification != "normal":
             reason = self._ensure_min_length(
                 page.skip_reason or "〈本頁跳過〉內容不足以生成摘要。",
                 55,
             )
-            return PageSummaryResult(
+            return PageDetailedAnalysis(
                 page_number=page.page_number,
                 classification=page.classification,
-                bullets=[self._prefix_bullet(page.page_number, reason)],
+                page_summary=reason,
+                key_findings="",
+                data_points="",
+                risks_opportunities="",
                 skipped=True,
                 skip_reason=page.skip_reason,
             )
@@ -356,31 +486,43 @@ class SummaryEngine:
         user_prompt = f"{prompt}\n{text}\n\n{PAGE_INSTRUCTIONS}".strip()
         data = await self._chat_toon(SYSTEM_PROMPT, user_prompt)
         
-        # 獲取段落或列表
-        raw_bullets = data.get("bullets", [])
-        
-        if not raw_bullets:
-            # Fallback: 如果沒有 bullets，使用 fallback 機制
-            bullets = self._fallback_bullets(page)
+        # 檢查是否成功解析四維度
+        if "page_summary" in data:
+            # 成功解析四維度分析
+            page_summary = self._ensure_min_length(data.get("page_summary", "").strip(), 200)
+            key_findings = self._ensure_min_length(data.get("key_findings", "").strip(), 150)
+            data_points = self._ensure_min_length(data.get("data_points", "").strip(), 150)
+            risks_opportunities = self._ensure_min_length(data.get("risks_opportunities", "").strip(), 150)
+            
+            # 限制最大長度
+            page_summary = self._trim_to_limit(page_summary, 300)
+            key_findings = self._trim_to_limit(key_findings, 250)
+            data_points = self._trim_to_limit(data_points, 250)
+            risks_opportunities = self._trim_to_limit(risks_opportunities, 250)
+            
+            return PageDetailedAnalysis(
+                page_number=page.page_number,
+                classification=page.classification,
+                page_summary=page_summary,
+                key_findings=key_findings,
+                data_points=data_points,
+                risks_opportunities=risks_opportunities,
+                skipped=False,
+                skip_reason=None,
+            )
         else:
-            # 處理段落格式（單一項目）或列表格式（多項目）
-            bullets: List[str] = []
-            for bullet in raw_bullets[:1]:  # 現在只取第一項（段落）
-                # 確保段落至少 200 字
-                enriched = self._ensure_min_length(bullet.strip(), 200)
-                bullets.append(self._prefix_bullet(page.page_number, enriched))
-        
-            # 如果段落太短，使用 fallback
-            if not bullets or len(bullets[0]) < 200:
-                bullets = self._fallback_bullets(page)
-
-        return PageSummaryResult(
-            page_number=page.page_number,
-            classification=page.classification,
-            bullets=bullets[:5],
-            skipped=False,
-            skip_reason=None,
-        )
+            # Fallback: 如果未能解析四維度，使用傳統 fallback
+            fallback_text = self._fallback_bullets(page)[0]  # 獲取單一段落
+            return PageDetailedAnalysis(
+                page_number=page.page_number,
+                classification=page.classification,
+                page_summary=fallback_text,
+                key_findings="本頁未能生成詳細分析,請參考頁面總覽。",
+                data_points="本頁未能提取核心數據。",
+                risks_opportunities="本頁未能識別風險與機會。",
+                skipped=False,
+                skip_reason=None,
+            )
 
     async def summarize_pages(
         self,
@@ -397,19 +539,52 @@ class SummaryEngine:
             if progress_callback:
                 await progress_callback(idx + 1)
 
+
         await asyncio.gather(*(_worker(idx, page) for idx, page in enumerate(pages)))
         return [r for r in results if r is not None]
 
-    async def summarize_global(self, page_results: List[PageSummaryResult]) -> GlobalSummary:
-        page_points = []
+    async def synthesize_global(self, page_results: List[PageDetailedAnalysis]) -> GlobalSummary:
+        """基於四維度頁面分析生成全局彙整"""
+        # 分別收集各維度內容
+        page_summaries = []
+        key_findings = []
+        data_points = []
+        risks_opportunities = []
+        
         for page in page_results:
-            for bullet in page.bullets:
-                page_points.append(f"{bullet}")
+            if not page.skipped:
+                page_summaries.append(f"〔p.{page.page_number}〕{page.page_summary}")
+                key_findings.append(f"〔p.{page.page_number}〕{page.key_findings}")
+                data_points.append(f"〔p.{page.page_number}〕{page.data_points}")
+                risks_opportunities.append(f"〔p.{page.page_number}〕{page.risks_opportunities}")
+        
+        # 組織分維度的提示詞輸入（限制每個維度的字數以避免超token）
+        page_summaries_text = "\n\n".join(page_summaries[:80])  # 約前80頁
+        key_findings_text = "\n\n".join(key_findings[:80])
+        data_points_text = "\n\n".join(data_points[:80])
+        risks_opportunities_text = "\n\n".join(risks_opportunities[:80])
+        
+        # 調用 LLM 生成全局分析
+        prompt = GLOBAL_PROMPT_TEMPLATE.format(
+            page_summaries=page_summaries_text or "暫無內容",
+            key_findings=key_findings_text or "暫無內容",
+            data_points=data_points_text or "暫無內容",
+            risks_opportunities=risks_opportunities_text or "暫無內容"
+        )
+        
+        data = await self._chat_toon(SYSTEM_PROMPT, prompt)
 
-        payload = "\n".join(page_points[:160]) or "暫無要點"
-        data = await self._chat_toon(SYSTEM_PROMPT, GLOBAL_PROMPT_TEMPLATE.format(page_points=payload))
-
-        overview = [self._ensure_min_length(item.strip(), 60) for item in data.get("overview", []) if item and item.strip()]
+        # 處理 overview - 現在是單一段落而非列表
+        overview_text = data.get("overview", "")
+        if isinstance(overview_text, list):
+            # Fallback: 如果返回列表，合併為段落
+            overview_text = " ".join([str(item).strip() for item in overview_text if item])
+        
+        # 確保 overview 段落至少 300 字
+        overview_text = self._ensure_min_length(overview_text.strip(), 300)
+        # 限制最大 600 字
+        overview_text = self._trim_to_limit(overview_text, 600)
+        
         expansions_raw = data.get("expansions", {})
 
         expansions = GlobalSummaryExpansions(
@@ -427,11 +602,10 @@ class SummaryEngine:
             ),
         )
 
-        overview = [self._trim_to_limit(item, 120) for item in overview][:7]
-        if len(overview) < 5:
-            overview.extend(["（待補要點）"] * (5 - len(overview)))
+        # 將單一 overview 段落包裝為列表以保持數據結構兼容
+        overview_bullets = [overview_text] if overview_text else ["〔全局摘要〕（待補要點）本文檔內容不足以生成完整摘要，建議人工檢視原始文件以獲取完整上下文資訊。"]
 
-        return GlobalSummary(bullets=overview[:7], expansions=expansions)
+        return GlobalSummary(bullets=overview_bullets, expansions=expansions)
 
     @staticmethod
     def _trim_to_limit(text: str, limit: int) -> str:

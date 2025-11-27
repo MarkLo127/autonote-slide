@@ -182,7 +182,8 @@ async def analyze_file(
                     }
                 )
 
-                global_summary = await engine.summarize_global(page_results)
+                # 使用四維度結果生成全局彙整
+                global_summary = await engine.synthesize_global(page_results)
 
                 joined_text = "\n".join(page.text for page in pages)
                 language = detect_lang(joined_text)
@@ -217,6 +218,9 @@ async def analyze_file(
                         }
                     )
 
+                # 轉換為舊格式以保持前端兼容
+                legacy_results = [result.to_legacy_format() for result in page_results]
+                
                 response_payload = AnalyzeResponse(
                     language=language,
                     total_pages=total_pages,
@@ -229,11 +233,11 @@ async def analyze_file(
                             skipped=result.skipped,
                             skip_reason=result.skip_reason,
                         )
-                        for result in page_results
+                        for result in legacy_results
                     ],
                     global_summary=global_summary,
                     system_prompt=SYSTEM_PROMPT,
-                    wordcloud_image_url=wordcloud_url,
+                    wordcloud_url=wordcloud_url,
                 )
 
                 await push_event(
