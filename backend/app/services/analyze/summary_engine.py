@@ -431,6 +431,38 @@ class SummaryEngine:
             logger.error(f"API 調用失敗: {exc}")
             return {}
 
+    async def _chat_simple(self, system_prompt: str, user_prompt: str) -> str:
+        """直接调用LLM并返回文本响应，不进行TOON格式解析
+        
+        用于全局摘要等不需要结构化解析的场景，提高可靠性。
+        
+        Args:
+            system_prompt: 系统提示词
+            user_prompt: 用户提示词
+            
+        Returns:
+            LLM返回的纯文本响应，失败时返回空字符串
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=2000,
+                temperature=0.3,
+            )
+            content = response.choices[0].message.content or ""
+            return content.strip()
+            
+        except Exception as exc:
+            logger.error(f"_chat_simple API 調用失敗: {exc}")
+            return ""
+
 
     async def summarize_page(self, page: ClassifiedPage) -> PageDetailedAnalysis:
         """生成頁面的四維度詳細分析"""
@@ -510,7 +542,7 @@ class SummaryEngine:
         return [r for r in results if r is not None]
 
     async def synthesize_global(self, page_results: List[PageDetailedAnalysis]) -> GlobalSummary:
-        """基於四維度頁面分析生成全局彙整 - 每個維度分別生成"""
+        """基於四維度頁面分析生成全局彙整 - 使用简单文本生成提升可靠性"""
         # 分別收集各維度內容
         page_summaries = []
         key_findings = []
@@ -531,80 +563,118 @@ class SummaryEngine:
         logger = logging.getLogger(__name__)
         
         # 1. 生成全局總覽（基於所有頁面的page_summary）
-        overview_prompt = f"""
-請基於以下各頁面的總覽內容，生成一段300-600字的全局總覽段落：
+        overview_text = ""
+        if page_summaries:
+            overview_prompt = f"""你的任務是基於以下各頁面的總覽內容，撰寫一段簡潔的全局文檔摘要。
 
+【各頁面總覽】：
 {chr(10).join(page_summaries[:60])}
 
-要求：
-- 提煉整份文件的核心主題與結構
-- 說明文件類型、主要內容與目的
-- 用一段完整、連貫的段落呈現
-- 字數：300-600字
-"""
-        
-        overview_data = await self._chat_toon(SYSTEM_PROMPT, overview_prompt)
-        overview_text = overview_data.get("page_summary", "") or overview_data.get("summary", "") or overview_data.get("overview", "")
-        overview_text = self._trim_to_limit(overview_text.strip(), 600)
-        logger.info(f"生成全局總覽: {len(overview_text)} 字")
+【輸出要求】：
+1. 撰寫一段300-600字的連貫段落
+2. 提煉整份文件的核心主題與結構
+3. 說明文件類型、主要內容與目的
+4. 使用客觀、專業的語氣
+5. **直接輸出段落文本，不要添加任何標題、標籤或格式標記**
+
+現在請撰寫全局摘要："""
+            
+            try:
+                overview_text = await self._chat_simple(SYSTEM_PROMPT, overview_prompt)
+                if len(overview_text) < 100:  # 太短，使用fallback
+                    overview_text = "本文檔涵蓋多個主題。" + (page_summaries[0][:300] if page_summaries else "")
+                overview_text = self._trim_to_limit(overview_text, 600)
+                logger.info(f"生成全局總覽: {len(overview_text)} 字")
+            except Exception as e:
+                logger.error(f"生成全局總覽失敗: {e}")
+                overview_text = "本文檔進行了全面分析，請參考逐頁內容以了解詳情。"
+        else:
+            overview_text = "本文檔內容不足以生成摘要。"
         
         # 2. 生成關鍵結論（基於所有頁面的key_findings）
+        key_conclusions = ""
         if key_findings:
-            conclusions_prompt = f"""
-請基於以下各頁面的關鍵發現，提煉出200-400字的整體關鍵結論：
+            conclusions_prompt = f"""請基於以下各頁面的關鍵發現，提煉出整體的關鍵結論。
 
+【各頁面關鍵發現】：
 {chr(10).join(key_findings[:60])}
 
-要求：
-- 提煉最重要的發現與結論
-- 識別主要趨勢或模式
-- 用一段完整、連貫的段落呈現
-- 字數：200-400字
-"""
-            conclusions_data = await self._chat_toon(SYSTEM_PROMPT, conclusions_prompt)
-            key_conclusions = conclusions_data.get("page_summary", "") or conclusions_data.get("summary", "") or conclusions_data.get("key_conclusions", "")
-            key_conclusions = self._trim_to_limit(key_conclusions.strip(), 400)
-            logger.info(f"生成關鍵結論: {len(key_conclusions)} 字")
+【輸出要求】：
+1. 撰寫一段200-400字的連貫段落
+2. 提煉最重要的發現與結論
+3. 識別主要趨勢或模式
+4. 突出最值得關注的洞察
+5. **直接輸出段落文本，不要添加標題或格式標記**
+
+現在請撰寫關鍵結論："""
+            
+            try:
+                key_conclusions = await self._chat_simple(SYSTEM_PROMPT, conclusions_prompt)
+                if len(key_conclusions) < 50:
+                    key_conclusions = "核心發現包括：" + (key_findings[0][:200] if key_findings else "請參考逐頁分析。")
+                key_conclusions = self._trim_to_limit(key_conclusions, 400)
+                logger.info(f"生成關鍵結論: {len(key_conclusions)} 字")
+            except Exception as e:
+                logger.error(f"生成關鍵結論失敗: {e}")
+                key_conclusions = "主要發現請參考各頁面的關鍵發現部分。"
         else:
             key_conclusions = "本文件未涉及重大發現或結論。"
         
         # 3. 生成核心數據（基於所有頁面的data_points）
+        core_data = ""
         if data_points:
-            data_prompt = f"""
-請基於以下各頁面的核心數據，彙整出200-400字的核心數據總結：
+            data_prompt = f"""請基於以下各頁面的核心數據，彙整出關鍵數據總結。
 
+【各頁面核心數據】：
 {chr(10).join(data_points[:60])}
 
-要求：
-- 整合最重要的財務或業務數據
-- 保留關鍵數值、時間、對比
-- 用一段完整、連貫的段落呈現
-- 字數：200-400字
-"""
-            data_response = await self._chat_toon(SYSTEM_PROMPT, data_prompt)
-            core_data = data_response.get("page_summary", "") or data_response.get("summary", "") or data_response.get("core_data", "")
-            core_data = self._trim_to_limit(core_data.strip(), 400)
-            logger.info(f"生成核心數據: {len(core_data)} 字")
+【輸出要求】：
+1. 撰寫一段200-400字的連貫段落
+2. 整合最重要的財務或業務數據  
+3. 保留關鍵數值、時間、對比資訊
+4. 突出數據之間的關聯或趨勢
+5. **直接輸出段落文本，不要添加標題或格式標記**
+
+現在請撰寫核心數據總結："""
+            
+            try:
+                core_data = await self._chat_simple(SYSTEM_PROMPT, data_prompt)
+                if len(core_data) < 50:
+                    core_data = "關鍵數據包括：" + (data_points[0][:200] if data_points else "請參考逐頁分析。")
+                core_data = self._trim_to_limit(core_data, 400)
+                logger.info(f"生成核心數據: {len(core_data)} 字")
+            except Exception as e:
+                logger.error(f"生成核心數據失敗: {e}")
+                core_data = "核心數據請參考各頁面的數據部分。"
         else:
             core_data = "本文件未涉及具體量化數據。"
         
         # 4. 生成風險與建議（基於所有頁面的risks_opportunities）
+        risks_and_actions = ""
         if risks_opportunities:
-            risks_prompt = f"""
-請基於以下各頁面的風險與機會，彙整出200-400字的風險與建議總結：
+            risks_prompt = f"""請基於以下各頁面的風險與機會，彙整出風險與建議總結。
 
+【各頁面風險與機會】：
 {chr(10).join(risks_opportunities[:60])}
 
-要求：
-- 識別最重要的風險因素與機會
-- 提供可行的應對建議
-- 用一段完整、連貫的段落呈現
-- 字數：200-400字
-"""
-            risks_data = await self._chat_toon(SYSTEM_PROMPT, risks_prompt)
-            risks_and_actions = risks_data.get("page_summary", "") or risks_data.get("summary", "") or risks_data.get("risks_and_actions", "")
-            risks_and_actions = self._trim_to_limit(risks_and_actions.strip(), 400)
-            logger.info(f"生成風險與建議: {len(risks_and_actions)} 字")
+【輸出要求】：
+1. 撰寫一段200-400字的連貫段落
+2. 識別最重要的風險因素與機會
+3. 提供可行的應對建議或行動方向
+4. 平衡風險警示與機會把握
+5. **直接輸出段落文本，不要添加標題或格式標記**
+
+現在請撰寫風險與建議總結："""
+            
+            try:
+                risks_and_actions = await self._chat_simple(SYSTEM_PROMPT, risks_prompt)
+                if len(risks_and_actions) < 50:
+                    risks_and_actions = "主要風險包括：" + (risks_opportunities[0][:200] if risks_opportunities else "請參考逐頁分析。")
+                risks_and_actions = self._trim_to_limit(risks_and_actions, 400)
+                logger.info(f"生成風險與建議: {len(risks_and_actions)} 字")
+            except Exception as e:
+                logger.error(f"生成風險與建議失敗: {e}")
+                risks_and_actions = "風險評估請參考各頁面的風險與機會部分。"
         else:
             risks_and_actions = "本文件未明確提及風險或機會。"
         
@@ -616,9 +686,9 @@ class SummaryEngine:
         )
 
         # 將 overview 包裝為列表以保持數據結構兼容
-        overview_bullets = [overview_text] if overview_text else ["〔全局摘要〕本文檔內容不足以生成完整摘要。"]
+        overview_bullets = [overview_text] if overview_text else ["本文檔內容不足以生成完整摘要。"]
 
-        return GlobalSummary(bullets=overview_bullets,  expansions=expansions)
+        return GlobalSummary(bullets=overview_bullets, expansions=expansions)
 
 
     @staticmethod
