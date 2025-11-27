@@ -63,25 +63,22 @@ async def analyze_file(
                 await push_event({"type": "progress", "progress": 12, "message": "檔案儲存完成"})
 
                 # 決定要使用的模型
-                # 優先級：1. analysis_level + provider -> 2. llm_model
+                # 優先級：1. 用户明确选择的模型 (llm_model) -> 2. analysis_level + provider 自动选择
                 from backend.app.models.schemas import MODEL_PROVIDERS, MODEL_LEVEL_MAPPING
                 
                 actual_base_url = llm_base_url
-                selected_model = llm_model
+                selected_model = llm_model  # 默认使用用户选择的模型
                 
-                if analysis_level and llm_provider:
-                    # 使用分析級別和供應商來選擇模型
+                # 只有当用户没有提供模型时，才使用 analysis_level 进行自动选择
+                if (not llm_model or llm_model.strip() == "") and analysis_level and llm_provider:
+                    # 使用分析级别和供应商来自动选择模型
                     if llm_provider in MODEL_LEVEL_MAPPING:
                         level_str = analysis_level.value if hasattr(analysis_level, 'value') else str(analysis_level)
                         selected_model = MODEL_LEVEL_MAPPING[llm_provider].get(level_str, llm_model)
-                    
-                    # 如果沒有提供 base_url，則根據 provider 自動選擇
-                    if not actual_base_url and llm_provider in MODEL_PROVIDERS:
-                        actual_base_url = MODEL_PROVIDERS[llm_provider]["base_url"]
-                elif llm_provider:
-                    # 只有 provider 沒有 level，使用用戶選擇的模型
-                    if not actual_base_url and llm_provider in MODEL_PROVIDERS:
-                        actual_base_url = MODEL_PROVIDERS[llm_provider]["base_url"]
+                
+                # 设置 base_url
+                if not actual_base_url and llm_provider and llm_provider in MODEL_PROVIDERS:
+                    actual_base_url = MODEL_PROVIDERS[llm_provider]["base_url"]
 
                 # 使用 from_model 自動配置，並支援 Vision
                 settings = LLMSettings.from_model(
