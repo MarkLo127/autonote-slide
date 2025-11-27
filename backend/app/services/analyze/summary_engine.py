@@ -130,6 +130,7 @@ class SummaryEngine:
         OpenAI SDK 會自動處理 429 錯誤和重試。
         """
         import logging
+        import re
         logger = logging.getLogger(__name__)
         
         try:
@@ -146,6 +147,16 @@ class SummaryEngine:
             
             # 調試日誌：顯示 API 返回內容的前 200 字元
             logger.info(f"API 返回內容（前200字）: {content[:200]}")
+            
+            # 清理 markdown 代碼塊（某些 LLM 提供商會用 ```json ... ``` 包裹 JSON）
+            content = content.strip()
+            if content.startswith("```"):
+                # 移除開頭的 ```json 或 ```
+                content = re.sub(r'^```(?:json)?\s*\n?', '', content)
+                # 移除結尾的 ```
+                content = re.sub(r'\n?```\s*$', '', content)
+                content = content.strip()
+                logger.info(f"清理 markdown 代碼塊後: {content[:200]}")
             
             parsed = json.loads(content)
             
