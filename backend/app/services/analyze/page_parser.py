@@ -16,28 +16,58 @@ class PageContent:
     image_count: int = 0  # 該頁分析的圖片數量
 
 
-def _parse_pdf(path: str, vision_analyzer=None, vision_settings=None) -> List[PageContent]:
+def _parse_pdf(path: str, vision_analyzer=None, vision_settings=None, use_markdown: bool = True) -> List[PageContent]:
     """
-    解析 PDF，可選擇性使用 Vision API 分析圖片
+    解析 PDF，可選擇性使用 Markdown 轉換和 Vision API 分析圖片
     
     Args:
         path: PDF 檔案路徑
         vision_analyzer: VisionAnalyzer 實例（可選）
         vision_settings: Vision 配置（從 LLMSettings 提取）
+        use_markdown: 是否使用 Markdown 轉換（預設 True）
         
     Returns:
         頁面內容列表
     """
     import fitz  # PyMuPDF
-
-    doc = fitz.open(path)
+    import logging
+    
+    logger = logging.getLogger(__name__)
     pages: List[PageContent] = []
     
-    for idx, page in enumerate(doc, start=1):
+    # 嘗試使用 Markdown 轉換
+    markdown_pages = {}
+    if use_markdown:
         try:
-            text = page.get_text() or ""
-        except Exception:
-            text = ""
+            from backend.app.services.parsing.pdf_to_markdown import convert_pdf_to_markdown
+            logger.info(f"正在將 PDF 轉換為 Markdown: {path}")
+            md_result = convert_pdf_to_markdown(
+                pdf_path=path,
+                write_images=False,  # 不儲存圖片，因為 Vision 會處理
+                page_chunks=True     # 逐頁轉換
+            )
+            # 建立頁碼到 Markdown 的映射
+            for page_data in md_result:
+                page_num = page_data.get("page_number", 0)
+                markdown_pages[page_num] = page_data.get("markdown", "")
+            logger.info(f"成功轉換 {len(markdown_pages)} 頁 PDF 到 Markdown")
+        except Exception as e:
+            logger.warning(f"Markdown 轉換失敗，將使用原始文字提取: {e}")
+            markdown_pages = {}
+    
+    doc = fitz.open(path)
+    
+    for idx, page in enumerate(doc, start=1):
+        # 優先使用 Markdown 內容，否則使用原始文字
+        if idx in markdown_pages and markdown_pages[idx].strip():
+            text = markdown_pages[idx]
+            logger.debug(f"第 {idx} 頁使用 Markdown 內容")
+        else:
+            try:
+                text = page.get_text() or ""
+                logger.debug(f"第 {idx} 頁使用原始文字提取")
+            except Exception:
+                text = ""
         
         image_count = 0
         
@@ -87,7 +117,7 @@ def _parse_pdf(path: str, vision_analyzer=None, vision_settings=None) -> List[Pa
                         
             except Exception as e:
                 # Vision 分析失敗不應該影響整體處理
-                pass
+                logger.warning(f"第 {idx} 頁圖片分析失敗: {e}")
         
         pages.append(PageContent(
             page_number=idx,

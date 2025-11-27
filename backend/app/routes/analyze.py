@@ -100,6 +100,15 @@ async def analyze_file(
                            f"request_delay={settings.request_delay}")
 
                 _, ext = os.path.splitext(filename)
+                
+                # 添加 PDF 轉 Markdown 的進度提示
+                if ext.lower() == ".pdf":
+                    await push_event({
+                        "type": "progress",
+                        "progress": 15,
+                        "message": "正在將 PDF 轉換為 Markdown 格式..."
+                    })
+                
                 try:
                     # 如果啟用 Vision，創建 vision_analyzer
                     vision_analyzer = None
@@ -130,7 +139,7 @@ async def analyze_file(
                 await push_event(
                     {
                         "type": "progress",
-                        "progress": 28,
+                        "progress": 30,
                         "message": f"完成文字解析，共 {len(pages)} 頁",
                     }
                 )

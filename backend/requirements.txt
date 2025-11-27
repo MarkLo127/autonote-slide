@@ -9,6 +9,7 @@ nltk
 scikit-learn
 wordcloud
 PyMuPDF
+pymupdf4llm>=0.0.17
 Pillow
 openai
 graphviz
