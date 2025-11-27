@@ -75,30 +75,32 @@ PAGE_PROMPT_TEMPLATE = """
 
 PAGE_INSTRUCTIONS = """
 ## 任務要求
-請將上述內容精煉為 3-4 條核心要點，每條需符合以下標準：
+請將上述內容精煉為一段完整的文字總結，需符合以下標準：
 
 ### 內容規範
-- **長度控制**：每條 55-110 個全形字（約 1-2 句完整表述）
-- **資訊聚焦**：單一重點（策略結論 / 量化數據 / 風險警示 / 行動方案）
+- **長度控制**：200-500 個全形字（約 3-6 句完整段落）
+- **結構完整**：須包含開頭、主體與結尾，邏輯連貫不可戛然而止
+- **資訊整合**：融合該頁所有重點（策略結論、量化數據、風險警示、行動方案）
 - **數據完整**：必須保留數值、單位、時間範圍及對比基準
-- **語句獨立**：可單獨理解，無需參照前後文
+- **流暢自然**：使用連接詞（例如：此外、同時、進而）使段落更連貫
 
 ### 禁止事項
-- 不使用條列符號（•、-）或頁碼標記
+- 不使用條列符號（•、-、數字編號）
+- 不分點或分段描述，必須是單一連貫段落
 - 不引用圖表編號或章節標題
 - 不添加原文未提及的推測或建議
+- 不可使用省略號或未完成的句子
 
 ### 輸出格式（TOON）
 ```
 page_summary:
-  bullets[4]: |
-    要點一的完整內容
-    要點二的完整內容
-    要點三的完整內容
-    要點四的完整內容
+  summary: |
+    這里是一段完整的文字總結，涵蓋所有重點與核心發現。內容應該流暢自然，邏輯清晰，包含具體數據與結論。整個段落必須完整表達，不可在中途戛然而止。
 ```
 
-注意：使用 | 符號後每條要點獨立一行，無需額外標記。
+### 寫作範例
+好的總結應該像這樣：
+「本頁揭示公司 2024 年第三季營收達 150 億美元，較去年同期成長 23%，主要受惠於亞太區需求強勁。此外，毛利率提升至 42%，顯示成本控制成效顯著。然而，管理層警告第四季可能面臨供應鏈壓力，預計將影響出貨時程，建議提前備貨以降低風險。」
 """
 
 GLOBAL_PROMPT_TEMPLATE = """
@@ -289,11 +291,19 @@ class SummaryEngine:
             # 解析 TOON 格式
             parsed = {}
             
-            # 檢查是否為 page_summary 格式
-            if 'page_summary' in content or 'bullets[' in content:
-                bullets = self._parse_toon_bullets(content)
-                parsed = {"bullets": bullets}
-                logger.info(f"解析 page_summary: {len(bullets)} 條要點")
+            # 檢查是否為 page_summary 格式（段落或列表）
+            if 'page_summary' in content or 'summary:' in content or 'bullets[' in content:
+                # 嘗試解析段落格式（summary: |\n ...）
+                summary = self._parse_toon_multiline(content, 'summary')
+                if summary:
+                    # 如果有段落，將其包裝為單一 bullet
+                    parsed = {"bullets": [summary]}
+                    logger.info(f"解析 page_summary 段落: {len(summary)} 字")
+                else:
+                    # Fallback: 嘗試解析為列表格式
+                    bullets = self._parse_toon_bullets(content)
+                    parsed = {"bullets": bullets}
+                    logger.info(f"解析 page_summary 列表: {len(bullets)} 條要點")
             
             # 檢查是否為 global_summary 格式
             elif 'global_summary' in content or 'overview[' in content:
@@ -345,14 +355,24 @@ class SummaryEngine:
         prompt = PAGE_PROMPT_TEMPLATE.format(page_no=page.page_number, page_class=page.classification)
         user_prompt = f"{prompt}\n{text}\n\n{PAGE_INSTRUCTIONS}".strip()
         data = await self._chat_toon(SYSTEM_PROMPT, user_prompt)
-        raw_bullets = [line.strip() for line in data.get("bullets", []) if line and line.strip()]
-        bullets: List[str] = []
-        for bullet in raw_bullets[:5]:
-            enriched = self._ensure_min_length(bullet, 55)
-            bullets.append(self._prefix_bullet(page.page_number, enriched))
-
-        if len(bullets) < 3:
+        
+        # 獲取段落或列表
+        raw_bullets = data.get("bullets", [])
+        
+        if not raw_bullets:
+            # Fallback: 如果沒有 bullets，使用 fallback 機制
             bullets = self._fallback_bullets(page)
+        else:
+            # 處理段落格式（單一項目）或列表格式（多項目）
+            bullets: List[str] = []
+            for bullet in raw_bullets[:1]:  # 現在只取第一項（段落）
+                # 確保段落至少 200 字
+                enriched = self._ensure_min_length(bullet.strip(), 200)
+                bullets.append(self._prefix_bullet(page.page_number, enriched))
+        
+            # 如果段落太短，使用 fallback
+            if not bullets or len(bullets[0]) < 200:
+                bullets = self._fallback_bullets(page)
 
         return PageSummaryResult(
             page_number=page.page_number,
@@ -427,24 +447,49 @@ class SummaryEngine:
 
     @staticmethod
     def _fallback_bullets(page: ClassifiedPage) -> List[str]:
+        """生成 fallback 段落摘要（而非列表）"""
         lines = [line for line in page.text.splitlines() if line.strip()]
-        bullets: List[str] = []
-        chunk: List[str] = []
+        
+        # 收集文字直到達到 200-500 字
+        paragraph_parts: List[str] = []
+        total_length = 0
+        target_length = 350  # 目標長度
+        
         for line in lines:
-            chunk.append(line.strip())
-            candidate = "".join(chunk)
-            if len(candidate) >= 70:
-                bullets.append(f"〔p.{page.page_number}〕• {candidate[:110]}")
-                chunk = []
-            if len(bullets) == 4:
+            if total_length >= target_length:
                 break
-        if chunk and len(bullets) < 4:
-            remaining = "".join(chunk)
-            bullets.append(f"〔p.{page.page_number}〕• {remaining[:110]}")
-        if not bullets:
-            bullets.append(f"〔p.{page.page_number}〕• 本頁內容過短，僅偵測到零散文字，建議人工檢視。")
-        bullets = [SummaryEngine._ensure_min_length_static(b, 55) for b in bullets]
-        return bullets
+            clean_line = line.strip()
+            if clean_line:
+                paragraph_parts.append(clean_line)
+                total_length += len(clean_line)
+        
+        # 組合成段落
+        if paragraph_parts:
+            # 使用句號或逗號連接，形成自然段落
+            paragraph = ""
+            for i, part in enumerate(paragraph_parts):
+                if i > 0 and not paragraph.endswith(('。', '，', '、', '；')):
+                    paragraph += "。"
+                paragraph += part
+                if total_length >= 200:
+                    break
+            
+            # 確保以句號結尾
+            if paragraph and not paragraph.endswith('。'):
+                paragraph += "。"
+            
+            # 限制最大長度
+            if len(paragraph) > 500:
+                paragraph = paragraph[:497] + "。"
+            
+            summary = f"〔p.{page.page_number}〕{paragraph}"
+        else:
+            summary = f"〔p.{page.page_number}〕本頁內容過短，僅偵測到零散文字，建議人工檢視原文以獲取完整上下文資訊。"
+        
+        # 確保至少 200 字
+        summary = SummaryEngine._ensure_min_length_static(summary, 200)
+        
+        return [summary]
 
     @staticmethod
     def _ensure_min_length(text: str, min_chars: int) -> str:
