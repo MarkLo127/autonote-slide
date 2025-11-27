@@ -27,33 +27,200 @@ class GlobalSummary(BaseModel):
 # 根據每個模型的速率限制（TPM/RPM）優化配置
 # 使用最大速率以獲得最快處理速度
 MODEL_CONFIGS = {
+    # OpenAI GPT Models
     "gpt-5.1-2025-11-13": {
-        # TPM: 30,000, RPM: 500
-        # 瓶頸在 TPM，但仍盡可能提高速度
         "max_requests_per_minute": 50,
         "request_delay": 0.05,
         "concurrency": 20,
         "max_retries": 5,
     },
     "gpt-5-mini-2025-08-07": {
-        # TPM: 500,000, RPM: 500
-        # 全速運行，接近 RPM 上限
         "max_requests_per_minute": 480,
         "request_delay": 0.01,
         "concurrency": 100,
         "max_retries": 5,
     },
     "gpt-5-nano-2025-08-07": {
-        # TPM: 200,000, RPM: 500
-        # 全速運行
         "max_requests_per_minute": 400,
         "request_delay": 0.02,
         "concurrency": 80,
         "max_retries": 5,
     },
+    
+    # Claude Models (Anthropic)
+    "claude-sonnet-4-5-20250929": {
+        "max_requests_per_minute": 40,
+        "request_delay": 0.05,
+        "concurrency": 15,
+        "max_retries": 5,
+    },
+    "claude-sonnet-4-20250514": {
+        "max_requests_per_minute": 40,
+        "request_delay": 0.05,
+        "concurrency": 15,
+        "max_retries": 5,
+    },
+    "claude-3-7-sonnet-20250219": {
+        "max_requests_per_minute": 50,
+        "request_delay": 0.03,
+        "concurrency": 20,
+        "max_retries": 5,
+    },
+    
+    # Gemini Models (Google)
+    "gemini-2.5-pro": {
+        "max_requests_per_minute": 30,
+        "request_delay": 0.1,
+        "concurrency": 10,
+        "max_retries": 5,
+    },
+    "gemini-2.5-flash": {
+        "max_requests_per_minute": 100,
+        "request_delay": 0.02,
+        "concurrency": 40,
+        "max_retries": 5,
+    },
+    "gemini-2.5-flash-lite": {
+        "max_requests_per_minute": 150,
+        "request_delay": 0.01,
+        "concurrency": 60,
+        "max_retries": 5,
+    },
+    
+    # DeepSeek Models
+    "deepseek-chat": {
+        "max_requests_per_minute": 60,
+        "request_delay": 0.05,
+        "concurrency": 25,
+        "max_retries": 5,
+    },
+    "deepseek-reasoner": {
+        "max_requests_per_minute": 30,
+        "request_delay": 0.1,
+        "concurrency": 12,
+        "max_retries": 5,
+    },
+    
+    # Qwen Models (Alibaba)
+    "qwen3-max": {
+        "max_requests_per_minute": 40,
+        "request_delay": 0.05,
+        "concurrency": 15,
+        "max_retries": 5,
+    },
+    "qwen-plus": {
+        "max_requests_per_minute": 80,
+        "request_delay": 0.03,
+        "concurrency": 30,
+        "max_retries": 5,
+    },
+    "qwen-flash": {
+        "max_requests_per_minute": 120,
+        "request_delay": 0.02,
+        "concurrency": 50,
+        "max_retries": 5,
+    },
+    
+    # Grok Models (X.AI)
+    "grok-4-1-fast-reasoning": {
+        "max_requests_per_minute": 30,
+        "request_delay": 0.1,
+        "concurrency": 12,
+        "max_retries": 5,
+    },
+    "grok-4": {
+        "max_requests_per_minute": 25,
+        "request_delay": 0.12,
+        "concurrency": 10,
+        "max_retries": 5,
+    },
+    "grok-3-mini": {
+        "max_requests_per_minute": 100,
+        "request_delay": 0.02,
+        "concurrency": 40,
+        "max_retries": 5,
+    },
 }
 
+# 模型供應商配置
+MODEL_PROVIDERS = {
+    "openai": {
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env": "OPENAI_API_KEY",
+        "models": ["gpt-5.1-2025-11-13", "gpt-5-mini-2025-08-07", "gpt-5-nano-2025-08-07"]
+    },
+    "claude": {
+        "name": "Claude (Anthropic)",
+        "base_url": "https://api.anthropic.com/v1",
+        "api_key_env": "ANTHROPIC_API_KEY",
+        "models": ["claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219"]
+    },
+    "gemini": {
+        "name": "Gemini (Google)",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "api_key_env": "GEMINI_API_KEY",
+        "models": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+    },
+    "deepseek": {
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com/v1",
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "models": ["deepseek-chat", "deepseek-reasoner"]
+    },
+    "qwen": {
+        "name": "Qwen (Alibaba)",
+        "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "api_key_env": "DASHSCOPE_API_KEY",
+        "models": ["qwen3-max", "qwen-plus", "qwen-flash"]
+    },
+    "grok": {
+        "name": "Grok (X.AI)",
+        "base_url": "https://api.x.ai/v1",
+        "api_key_env": "XAI_API_KEY",
+        "models": ["grok-4-1-fast-reasoning", "grok-4", "grok-3-mini"]
+    },
+    "custom": {
+        "name": "自訂",
+        "base_url": "",
+        "api_key_env": "",
+        "models": []
+    }
+}
 
+# 模型級別映射 - 根據供應商和分析級別選擇對應的模型
+MODEL_LEVEL_MAPPING = {
+    "openai": {
+        "light": "gpt-5-nano-2025-08-07",
+        "medium": "gpt-5-mini-2025-08-07",
+        "deep": "gpt-5.1-2025-11-13",
+    },
+    "claude": {
+        "light": "claude-3-7-sonnet-20250219",
+        "medium": "claude-sonnet-4-20250514",
+        "deep": "claude-sonnet-4-5-20250929",
+    },
+    "gemini": {
+        "light": "gemini-2.5-flash-lite",
+        "medium": "gemini-2.5-flash",
+        "deep": "gemini-2.5-pro",
+    },
+    "deepseek": {
+        "light": "deepseek-chat",
+        "medium": "deepseek-chat",
+        "deep": "deepseek-reasoner",
+    },
+    "qwen": {
+        "light": "qwen-flash",
+        "medium": "qwen-plus",
+        "deep": "qwen3-max",
+    },
+    "grok": {
+        "light": "grok-3-mini",
+        "medium": "grok-4",
+        "deep": "grok-4-1-fast-reasoning",
+    },
+}
 
 
 

@@ -7,7 +7,7 @@ from enum import Enum
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from backend.app.models.schemas import AnalyzeResponse, LLMSettings, PageSummary, Paragraph
+from backend.app.models.schemas import AnalyzeResponse, LLMSettings, PageSummary, Paragraph, MODEL_PROVIDERS, MODEL_LEVEL_MAPPING
 from backend.app.services.analyze.page_classifier import classify_page
 from backend.app.services.analyze.page_parser import parse_pages
 from backend.app.services.analyze.summary_engine import SummaryEngine, SYSTEM_PROMPT
@@ -23,12 +23,23 @@ class AnalysisLevel(str, Enum):
     MEDIUM = "medium"
     DEEP = "deep"
 
+@router.get("/providers")
+async def get_providers():
+    """取得所有可用的 LLM 供應商與模型資訊"""
+    return {
+        "providers": MODEL_PROVIDERS,
+        "level_mapping": MODEL_LEVEL_MAPPING
+    }
+
+
 @router.post("")
 async def analyze_file(
     file: UploadFile = File(...),
     llm_api_key: str = Form(...),
+    llm_model: str = Form("gpt-5-mini-2025-08-07"),
+    llm_provider: Optional[str] = Form(None),
     llm_base_url: Optional[str] = Form(None),
-    analysis_level: AnalysisLevel = Form(AnalysisLevel.MEDIUM),
+    analysis_level: Optional[AnalysisLevel] = Form(None),
     enable_vision: bool = Form(False),  # 是否啟用圖片分析
 ):
     if not file.filename:
@@ -51,26 +62,39 @@ async def analyze_file(
                 saved_path = save_upload(content, filename)
                 await push_event({"type": "progress", "progress": 12, "message": "檔案儲存完成"})
 
-                # 先確定模型配置
-                model_map = {
-                    AnalysisLevel.LIGHT: "gpt-5-nano-2025-08-07",
-                    AnalysisLevel.MEDIUM: "gpt-5-mini-2025-08-07",
-                    AnalysisLevel.DEEP: "gpt-5.1-2025-11-13",
-                }
-                llm_model = model_map[analysis_level]
+                # 決定要使用的模型
+                # 優先級：1. analysis_level + provider -> 2. llm_model
+                from backend.app.models.schemas import MODEL_PROVIDERS, MODEL_LEVEL_MAPPING
+                
+                actual_base_url = llm_base_url
+                selected_model = llm_model
+                
+                if analysis_level and llm_provider:
+                    # 使用分析級別和供應商來選擇模型
+                    if llm_provider in MODEL_LEVEL_MAPPING:
+                        level_str = analysis_level.value if hasattr(analysis_level, 'value') else str(analysis_level)
+                        selected_model = MODEL_LEVEL_MAPPING[llm_provider].get(level_str, llm_model)
+                    
+                    # 如果沒有提供 base_url，則根據 provider 自動選擇
+                    if not actual_base_url and llm_provider in MODEL_PROVIDERS:
+                        actual_base_url = MODEL_PROVIDERS[llm_provider]["base_url"]
+                elif llm_provider:
+                    # 只有 provider 沒有 level，使用用戶選擇的模型
+                    if not actual_base_url and llm_provider in MODEL_PROVIDERS:
+                        actual_base_url = MODEL_PROVIDERS[llm_provider]["base_url"]
 
                 # 使用 from_model 自動配置，並支援 Vision
                 settings = LLMSettings.from_model(
                     api_key=llm_api_key,
-                    base_url=llm_base_url,
-                    model=llm_model,
+                    base_url=actual_base_url,
+                    model=selected_model,
                     enable_vision=enable_vision
                 )
                 
                 # 調試日誌
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.info(f"API 請求配置: model={llm_model}, "
+                logger.info(f"API 請求配置: model={selected_model}, "
                            f"max_requests_per_minute={settings.max_requests_per_minute}, "
                            f"concurrency={settings.concurrency}, "
                            f"request_delay={settings.request_delay}")

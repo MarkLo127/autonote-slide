@@ -44,6 +44,18 @@ type AnalyzeResponse = {
 
 type FilePreviewKind = "none" | "pdf" | "text" | "image" | "generic";
 
+type ModelProvider = {
+  name: string;
+  base_url: string;
+  api_key_env: string;
+  models: string[];
+};
+
+type ProvidersResponse = {
+  providers: Record<string, ModelProvider>;
+  level_mapping: Record<string, Record<string, string>>;
+};
+
 const rawBackendOrigin =
   process.env.NEXT_PUBLIC_BACKEND_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
@@ -119,8 +131,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [llmBaseUrl, setLlmBaseUrl] = useState(DEFAULT_LLM_BASE_URL);
+  const [selectedProvider, setSelectedProvider] = useState("openai");
+  const [selectedModel, setSelectedModel] = useState("gpt-5-mini-2025-08-07");
+  const [customBaseUrl, setCustomBaseUrl] = useState("");
+  const [providers, setProviders] = useState<Record<string, ModelProvider>>({});
+  const [levelMapping, setLevelMapping] = useState<Record<string, Record<string, string>>>({});
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+  
+  // Legacy support
+  const [llmBaseUrl, setLlmBaseUrl] = useState(DEFAULT_LLM_BASE_URL);
   const [analysisCompleteMessage,
     setAnalysisCompleteMessage] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<
@@ -158,16 +177,34 @@ export default function Home() {
     [backendBase],
   );
 
+  // Fetch providers on mount
+  useEffect(() => {
+    const fetchProviders = async () => {
+      try {
+        const response = await fetch(`${backendBase}/analyze/providers`);
+        if (response.ok) {
+          const data: ProvidersResponse = await response.json();
+          setProviders(data.providers);
+          setLevelMapping(data.level_mapping || {});
+        }
+      } catch (err) {
+        console.error("獲取供應商資訊失敗", err);
+      }
+    };
+    fetchProviders();
+  }, [backendBase]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedKey = window.localStorage.getItem("autonote:llmApiKey") ?? "";
-    const storedBase = window.localStorage.getItem("autonote:llmBaseUrl");
+    const storedProvider = window.localStorage.getItem("autonote:selectedProvider") ?? "openai";
+    const storedModel = window.localStorage.getItem("autonote:selectedModel") ?? "gpt-5-mini-2025-08-07";
+    const storedCustomUrl = window.localStorage.getItem("autonote:customBaseUrl") ?? "";
+    
     setApiKey(storedKey);
-    setLlmBaseUrl(
-      storedBase && storedBase.trim().length > 0
-        ? storedBase
-        : DEFAULT_LLM_BASE_URL,
-    );
+    setSelectedProvider(storedProvider);
+    setSelectedModel(storedModel);
+    setCustomBaseUrl(storedCustomUrl);
     setHasLoadedSettings(true);
   }, []);
 
@@ -178,8 +215,27 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasLoadedSettings || typeof window === "undefined") return;
-    window.localStorage.setItem("autonote:llmBaseUrl", llmBaseUrl);
-  }, [llmBaseUrl, hasLoadedSettings]);
+    window.localStorage.setItem("autonote:selectedProvider", selectedProvider);
+  }, [selectedProvider, hasLoadedSettings]);
+
+  useEffect(() => {
+    if (!hasLoadedSettings || typeof window === "undefined") return;
+    window.localStorage.setItem("autonote:selectedModel", selectedModel);
+  }, [selectedModel, hasLoadedSettings]);
+
+  useEffect(() => {
+    if (!hasLoadedSettings || typeof window === "undefined") return;
+    window.localStorage.setItem("autonote:customBaseUrl", customBaseUrl);
+  }, [customBaseUrl, hasLoadedSettings]);
+
+  // Sync analysis_level with selectedModel for all providers
+  useEffect(() => {
+    if (!levelMapping[selectedProvider]) return;
+    const modelToSet = levelMapping[selectedProvider][analysisLevel];
+    if (modelToSet && selectedModel !== modelToSet) {
+      setSelectedModel(modelToSet);
+    }
+  }, [analysisLevel, selectedProvider, levelMapping, selectedModel]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -313,10 +369,17 @@ export default function Home() {
       const formData = new FormData();
       formData.append("file", selectedFiles[0]);
       formData.append("llm_api_key", apiKey);
-      formData.append("analysis_level", analysisLevel);
-      const cleanedBase = normalizeOptionalUrl(llmBaseUrl);
-      if (cleanedBase) {
-        formData.append("llm_base_url", cleanedBase);
+      formData.append("llm_model", selectedModel);
+      formData.append( "llm_provider", selectedProvider);
+      
+      // 如果選擇自訂，使用自訂的 Base URL
+      if (selectedProvider === "custom" && customBaseUrl.trim()) {
+        formData.append("llm_base_url", normalizeOptionalUrl(customBaseUrl));
+      }
+      
+      // 保持對 analysis_level 的支援（向後兼容）
+      if (analysisLevel) {
+        formData.append("analysis_level", analysisLevel);
       }
 
       const analyzeEndpoint = `${backendBase}/analyze`;
@@ -434,7 +497,7 @@ export default function Home() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [selectedFiles, apiKey, llmBaseUrl, backendBase, toAbsoluteUrl, analysisLevel]);
+  }, [selectedFiles, apiKey, selectedModel, selectedProvider, customBaseUrl, analysisLevel, backendBase, toAbsoluteUrl]);
 
   const resetSelection = useCallback(() => {
     setSelectedFiles([]);
@@ -875,20 +938,6 @@ export default function Home() {
               ) : null}
 
               <div className="w-full space-y-4">
-                <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
-                  <div>
-                    <input type="radio" name="analysis_level" id="level_light" value="light" checked={analysisLevel === "light"} onChange={(e) => setAnalysisLevel(e.target.value)} className="sr-only" />
-                    <label htmlFor="level_light" className={`block cursor-pointer rounded-lg py-2 text-center text-sm font-medium ${analysisLevel === "light" ? "bg-white text-indigo-600 shadow" : "text-slate-500"}`}>5-nano</label>
-                  </div>
-                  <div>
-                    <input type="radio" name="analysis_level" id="level_medium" value="medium" checked={analysisLevel === "medium"} onChange={(e) => setAnalysisLevel(e.target.value)} className="sr-only" />
-                    <label htmlFor="level_medium" className={`block cursor-pointer rounded-lg py-2 text-center text-sm font-medium ${analysisLevel === "medium" ? "bg-white text-indigo-600 shadow" : "text-slate-500"}`}>5-mini</label>
-                  </div>
-                  <div>
-                    <input type="radio" name="analysis_level" id="level_deep" value="deep" checked={analysisLevel === "deep"} onChange={(e) => setAnalysisLevel(e.target.value)} className="sr-only" />
-                    <label htmlFor="level_deep" className={`block cursor-pointer rounded-lg py-2 text-center text-sm font-medium ${analysisLevel === "deep" ? "bg-white text-indigo-600 shadow" : "text-slate-500"}`}>5.1</label>
-                  </div>
-                </div>
                 <button
                   type="button"
                   onClick={handleAnalyze}
@@ -968,8 +1017,8 @@ export default function Home() {
           <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white/95 p-6 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">API 設定</h3>
-                <p className="text-sm text-slate-500">請輸入您的 LLM API Key 與 Base URL</p>
+                <h3 className="text-lg font-semibold text-slate-900">模型設定</h3>
+                <p className="text-sm text-slate-500">選擇模型供應商、模型與輸入 API Key</p>
               </div>
               <button
                 type="button"
@@ -991,6 +1040,84 @@ export default function Home() {
             </div>
             <div className="mt-6 space-y-5">
               <div>
+                <label className="text-sm font-medium text-slate-700" htmlFor="providerSelect">
+                  模型供應商
+                </label>
+                <select
+                  id="providerSelect"
+                  value={selectedProvider}
+                  onChange={(event) => {
+                    setSelectedProvider(event.target.value);
+                    // 當切換供應商時，自動選擇該供應商的第一個模型
+                    const provider = providers[event.target.value];
+                    if (provider && provider.models.length > 0) {
+                      setSelectedModel(provider.models[0]);
+                    }
+                  }}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:border-indigo-400 focus:outline-none"
+                >
+                  {Object.entries(providers).map(([key, provider]) => (
+                    <option key={key} value={key}>
+                      {provider.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-slate-700" htmlFor="modelSelect">
+                  模型
+                </label>
+                {selectedProvider === "custom" ? (
+                  <input
+                    id="modelSelect"
+                    type="text"
+                    value={selectedModel}
+                    onChange={(event) => setSelectedModel(event.target.value)}
+                    placeholder="請輸入模型名稱（例如：gpt-4）"
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:border-indigo-400 focus:outline-none"
+                  />
+                ) : (
+                  <select
+                    id="modelSelect"
+                    value={selectedModel}
+                    onChange={(event) => setSelectedModel(event.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:border-indigo-400 focus:outline-none"
+                  >
+                    {providers[selectedProvider]?.models.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p className="mt-2 text-xs text-slate-400">
+                  {selectedProvider === "custom" 
+                    ? "請輸入與您的自訂端點相容的模型名稱"
+                    : `${providers[selectedProvider]?.name || ''} 提供的模型`}
+                </p>
+              </div>
+
+              {selectedProvider === "custom" && (
+                <div>
+                  <label className="text-sm font-medium text-slate-700" htmlFor="customBaseUrlInput">
+                    自訂 Base URL
+                  </label>
+                  <input
+                    id="customBaseUrlInput"
+                    type="url"
+                    value={customBaseUrl}
+                    onChange={(event) => setCustomBaseUrl(event.target.value)}
+                    placeholder="https://api.example.com/v1"
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:border-indigo-400 focus:outline-none"
+                  />
+                  <p className="mt-2 text-xs text-slate-400">
+                    請輸入您的自訂 API 端點 URL
+                  </p>
+                </div>
+              )}
+              
+              <div>
                 <label className="text-sm font-medium text-slate-700" htmlFor="apiKey">
                   API Key
                 </label>
@@ -999,24 +1126,13 @@ export default function Home() {
                   type="password"
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="請輸入您的 API Key"
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:border-indigo-400 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-slate-700" htmlFor="llmBaseUrlInput">
-                  base url（可選填）
-                </label>
-                <input
-                  id="llmBaseUrlInput"
-                  type="url"
-                  value={llmBaseUrl}
-                  onChange={(event) => setLlmBaseUrl(event.target.value)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder={`請輸入您的 API Key${providers[selectedProvider]?.api_key_env ? ` (${providers[selectedProvider].api_key_env})` : ''}`}
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:border-indigo-400 focus:outline-none"
                 />
                 <p className="mt-2 text-xs text-slate-400">
-                  若未填寫將沿用預設 base url：https://api.openai.com/v1。
+                  {selectedProvider !== "custom" && providers[selectedProvider]?.base_url && (
+                    <>Base URL: {providers[selectedProvider].base_url}</>
+                  )}
                 </p>
               </div>
             </div>
