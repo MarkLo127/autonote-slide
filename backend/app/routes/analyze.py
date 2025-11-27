@@ -237,7 +237,7 @@ async def analyze_file(
                     ],
                     global_summary=global_summary,
                     system_prompt=SYSTEM_PROMPT,
-                    wordcloud_url=wordcloud_url,
+                    wordcloud_image_url=wordcloud_url,
                 )
 
                 await push_event(

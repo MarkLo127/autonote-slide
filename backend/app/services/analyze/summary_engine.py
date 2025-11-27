@@ -119,96 +119,47 @@ page_detailed_analysis:
 
 
 GLOBAL_PROMPT_TEMPLATE = """
-## 全局彙整任務
+你必須生成一個完整的TOON格式輸出，包含4個部分。禁止遺漏任何部分。
 
-您將收到來自文件各頁面的四個維度分析結果。請基於這些分類輸入，生成針對性的全局彙整。
+輸入資料：
 
-### 輸入資料
-
-#### 【頁面總覽彙總】
+【頁面總覽】
 {page_summaries}
 
-#### 【關鍵發現彙總】
+【關鍵發現】
 {key_findings}
 
-#### 【核心數據彙總】
+【核心數據】
 {data_points}
 
-#### 【風險與機會彙總】
+【風險機會】
 {risks_opportunities}
 
----
+輸出要求（**必須完整生成以下TOON結構**）：
 
-### 輸出要求
+1. **overview**: 基於【頁面總覽】，寫一段300-600字的段落
+2. **key_conclusions**: 基於【關鍵發現】，寫一段200-400字的段落  
+3. **core_data**: 基於【核心數據】，寫一段200-400字的段落
+4. **risks_and_actions**: 基於【風險機會】，寫一段200-400字的段落
 
-請生成以下四個全局分析段落，每個段落基於對應的維度輸入：
-
-#### 1. 全局總結 (overview: 300-600字)
-- **輸入來源**：基於「頁面總覽彙總」
-- **目的**：從宏觀視角綜述整份文件的核心內容與意義
-- **內容要求**：
-  - 整份文件的主要主題與目的是什麼？
-  - 文件的整體結構與邏輯是怎樣的？
-  - 涵蓋哪些關鍵領域或板塊？
-  - 對讀者或决策者的意義何在？
-- **風格**：高層次綜述，提供完整全景視圖
-- **格式**：單一連貫段落，300-600字
-
-#### 2. 關鍵結論 (key_conclusions: 200-400字)
-- **輸入來源**：基於「關鍵發現彙總」
-- **目的**：提煉跨頁面的核心洞察與戰略意涵
-- **內容要求**：
-  - 跨頁面整合後最重要的發現是什麼？
-  - 呈現什麼整體趨勢或模式？
-  - 對業務或策略有什麼重要啟示？
-  - 必須標註來源頁碼（格式：〔p.3〕或〔p.5-7〕）
-- **風格**：聚焦核心，突出關鍵洞察
-- **格式**：單一連貫段落，200-400字
-
-#### 3. 核心數據與依據 (core_data: 200-400字)
-- **輸入來源**：基於「核心數據彙總」
-- **目的**：整合重要量化指標，呈現數據全貌與趨勢
-- **內容要求**：
-  - 最關鍵的財務或業務指標有哪些？
-  - 數據呈現什麼整體趨勢或變化？
-  - 各項指標之間有什麼關聯或對比？
-  - 必須保留完整數值、單位、時間與頁碼標記
-- **風格**：數據導向，精確量化
-- **格式**：單一連貫段落，200-400字
-
-#### 4. 風險與建議 (risks_and_actions: 200-400字)
-- **輸入來源**：基於「風險與機會彙總」
-- **目的**：識別主要風險並提出針對性建議
-- **內容要求**：
-  - 文件揭示的主要風險因素有哪些？
-  - 哪些不確定性或挑戰需要特別關注？
-  - 有哪些機會或正面因素？
-  - 建議採取什麼行動或決策？
-  - 必須標示相關頁碼參照
-- **風格**：風險導向，提供可執行建議
-- **格式**：單一連貫段落，200-400字
-
-### 輸出格式（TOON）
+**TOON格式輸出（照抄此結構，填入內容）**：
 ```
 global_summary:
   overview: |
-    本文件為XX公司的XX報告，主要涵蓋...整體而言...（300-600字完整段落）
+    文件是...（這裡寫300-600字段落）
   expansions:
     key_conclusions: |
-      跨頁面分析顯示...核心發現包括...〔p.5-7〕...綜合來看...（200-400字完整段落）
+      關鍵發現是...（這裡寫200-400字段落）
     core_data: |
-      財務數據方面...〔p.3〕...同時...〔p.15-18〕...整體趨勢...（200-400字完整段落）
+      核心數據顯示...（這裡寫200-400字段落）  
     risks_and_actions: |
-      主要風險因素包括...〔p.22〕...此外...建議...（200-400字完整段落）
+      主要風險包括...（這裡寫200-400字段落）
 ```
 
-### 品質標準
-- **禁止條列式**：所有內容必須是連貫段落，不可使用編號或符號分點
-- **針對性強**：每個維度嚴格基於對應的輸入來源，避免資訊混雜
-- **跨頁整合**：綜合多個頁面的資訊，提煉整體觀點而非簡單堆砌
-- **語氣明確**：避免模糊表述（「可能」「也許」等），基於實證下結論
-- **結構完整**：每個段落都需邏輯清晰連貫，自然收尾
-- **頁碼標註**：在擴充分析中必須標註來源頁碼
+**重要**：
+- 必須生成完整的4個段落
+- 禁止條列式，全部使用段落
+- 不可遺漏 expansions 部分
 """
 
 
@@ -225,7 +176,7 @@ class PageDetailedAnalysis:
     skip_reason: Optional[str] = None
     
     def to_legacy_format(self) -> "PageSummaryResult":
-        """轉換為舊格式以保持向後兼容"""
+        """轉換為舊格式以保持向後兼容，清除TOON標籤"""
         if self.skipped:
             return PageSummaryResult(
                 page_number=self.page_number,
@@ -235,16 +186,32 @@ class PageDetailedAnalysis:
                 skip_reason=self.skip_reason
             )
         
+        # 清理函數：移除TOON標籤
+        def clean_toon_labels(text: str) -> str:
+            import re
+            # 移除 TOON 標籤如 "page_summary: |" 等
+            text = re.sub(r'^\s*(page_summary|key_findings|data_points|risks_opportunities)\s*:\s*\|?\s*$', '', text, flags=re.MULTILINE)
+            text = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities)\s*:\s*\|', '', text)
+            return text.strip()
+        
         # 合併四個維度為單一 bullet（用於舊版兼容）
         combined_parts = []
         if self.page_summary:
-            combined_parts.append(f"【總覽】{self.page_summary}")
+            cleaned = clean_toon_labels(self.page_summary)
+            if cleaned:
+                combined_parts.append(f"【總覽】{cleaned}")
         if self.key_findings:
-            combined_parts.append(f"【發現】{self.key_findings}")
+            cleaned = clean_toon_labels(self.key_findings)
+            if cleaned:
+                combined_parts.append(f"【發現】{cleaned}")
         if self.data_points:
-            combined_parts.append(f"【數據】{self.data_points}")
+            cleaned = clean_toon_labels(self.data_points)
+            if cleaned:
+                combined_parts.append(f"【數據】{cleaned}")
         if self.risks_opportunities:
-            combined_parts.append(f"【風險】{self.risks_opportunities}")
+            cleaned = clean_toon_labels(self.risks_opportunities)
+            if cleaned:
+                combined_parts.append(f"【風險】{cleaned}")
         
         combined = "\n\n".join(combined_parts) if combined_parts else "（無內容）"
         
@@ -316,23 +283,42 @@ class SummaryEngine:
         return []
     
     @staticmethod
-    def _parse_toon_multiline(content: str, key: str) -> str:
+    def _parse_toon_multiline(content: str, key: str, parent_key: str = None) -> str:
         """
-        解析 TOON 格式的多行文字段落
+        解析 TOON 格式的多行文字段落，支持嵌套結構
         
         格式範例:
         key_conclusions: |
           段落內容第一行
           段落內容第二行
         
+        或嵌套格式:
+        expansions:
+          key_conclusions: |
+            段落內容
+        
+        Args:
+            content: 要解析的內容
+            key: 要查找的key
+            parent_key: 父級key（如果是嵌套結構）
+        
         Returns:
             完整段落文字
         """
         import re
         
+        # 如果有父級key，先提取父級內容塊
+        if parent_key:
+            # 找到父級key的內容塊
+            parent_pattern = rf'{parent_key}:\s*\n((?:[ \t]+.+\n?)+)'
+            parent_match = re.search(parent_pattern, content)
+            if parent_match:
+                content = parent_match.group(1)
+        
         # 尋找 key: | 後的內容（支持縮進）
-        pattern = rf'{key}:\s*\|\s*\n((?:[ \t]+.+\n?)+)'
-        match = re.search(pattern, content)
+        # 更寬鬆的pattern，允許key前面有空格
+        pattern = rf'^\s*{key}:\s*\|\s*\n((?:[ \t]+.+\n?)+)'
+        match = re.search(pattern, content, re.MULTILINE)
         
         if match:
             text_block = match.group(1)
@@ -413,10 +399,10 @@ class SummaryEngine:
                 # 解析 overview 段落（現在是單一段落而非列表）
                 overview = self._parse_toon_multiline(content, 'overview')
                 
-                # 解析三個擴充段落
-                key_conclusions = self._parse_toon_multiline(content, 'key_conclusions')
-                core_data = self._parse_toon_multiline(content, 'core_data')
-                risks_and_actions = self._parse_toon_multiline(content, 'risks_and_actions')
+                # 解析三個擴充段落，使用 parent_key 來正確提取嵌套字段
+                key_conclusions = self._parse_toon_multiline(content, 'key_conclusions', parent_key='expansions')
+                core_data = self._parse_toon_multiline(content, 'core_data', parent_key='expansions')
+                risks_and_actions = self._parse_toon_multiline(content, 'risks_and_actions', parent_key='expansions')
                 
                 parsed = {
                     "overview": overview,  # 現在是字串而非列表
@@ -426,7 +412,7 @@ class SummaryEngine:
                         "risks_and_actions": risks_and_actions
                     }
                 }
-                logger.info(f"解析 global_summary: overview {len(overview)} 字")
+                logger.info(f"解析 global_summary: overview {len(overview)} 字、key_conclusions {len(key_conclusions)} 字、core_data {len(core_data)} 字、risks_and_actions {len(risks_and_actions)} 字")
             else:
                 # Fallback: 嘗試當作純文字切分
                 logger.warning("無法識別 TOON 格式，嘗試 fallback 解析")
