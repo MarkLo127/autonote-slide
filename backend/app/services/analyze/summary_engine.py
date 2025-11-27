@@ -88,7 +88,7 @@ GLOBAL_PROMPT_TEMPLATE = """
 }}
 規則：
 - overview 每條句子需為 60~120 個全形字，至少 5 條，合計須超過 300 字。
-- 三段擴充各為 130~180 字，須點出來源頁碼（格式：〔p.x〕或範圍）。
+- 三段擴充各為 200~400 字，須點出來源頁碼（格式：〔p.x〕或範圍）。務必完整表達分析結論，不可草率收尾。
 - 強調結論與可行動事項，語氣務必明確，不得敷衍。
 """
 
@@ -222,16 +222,16 @@ class SummaryEngine:
 
         expansions = GlobalSummaryExpansions(
             key_conclusions=self._trim_to_limit(
-                self._ensure_min_length(expansions_raw.get("key_conclusions", ""), 130),
-                180,
+                self._ensure_min_length(expansions_raw.get("key_conclusions", ""), 200),
+                400,
             ),
             core_data=self._trim_to_limit(
-                self._ensure_min_length(expansions_raw.get("core_data", ""), 130),
-                180,
+                self._ensure_min_length(expansions_raw.get("core_data", ""), 200),
+                400,
             ),
             risks_and_actions=self._trim_to_limit(
-                self._ensure_min_length(expansions_raw.get("risks_and_actions", ""), 130),
-                180,
+                self._ensure_min_length(expansions_raw.get("risks_and_actions", ""), 200),
+                400,
             ),
         )
 
