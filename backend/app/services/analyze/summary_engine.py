@@ -75,27 +75,31 @@ PAGE_PROMPT_TEMPLATE = """
 
 PAGE_INSTRUCTIONS = """
 ## 任務要求
-請對上述內容進行精簡的四維度分析，**總字數控制在100-650字以內**：
+請對上述內容進行深入的四維度分析，**根據實際內容決定長度，避免強行湊字數**：
 
-### 1. 頁面總覽 (page_summary: 80-200字)
+### 1. 頁面總覽 (page_summary: 建議50-400字)
 - 概括本頁核心主題與主要內容
 - 屬於文件的哪個部分
 - 完整段落，流暢連貫
+- **可視內容多寡調整長度，重質不重量**
 
-### 2. 關鍵發現 (key_findings: 60-150字)
+### 2. 關鍵發現 (key_findings: 建議30-300字)
 - 本頁最值得關注的發現或結論
 - 揭示的趨勢或模式
-- 直指重點，避免贅述
+- 直指重點，提供深入洞察
+- **若無重大發現可簡短說明**
 
-### 3. 核心數據 (data_points: 60-150字)
+### 3. 核心數據 (data_points: 建議30-300字)
 - 關鍵財務數據或業務指標
 - 保留完整數值、單位、時間與對比
-- 精確呈現量化資訊
+- 精確呈現量化資訊並提供脈絡
+- **若本頁無數據可簡述「本頁未涉及具體數據」**
 
-### 4. 風險與機會 (risks_opportunities: 60-150字)
+### 4. 風險與機會 (risks_opportunities: 建議30-300字)
 - 潛在風險因素或挑戰
 - 機會或正面因素
-- 明確指出需警惕的要點
+- 明確指出需警惕的要點與可能的應對方向
+- **若本頁無風險內容可簡述「本頁無明顯風險提示」**
 
 ### 輸出格式（TOON）
 ```
@@ -112,9 +116,9 @@ page_detailed_analysis:
 
 ### 品質標準
 - **禁止條列式**：必須是連貫段落
-- **簡潔精準**：每個維度簡明扼要，總計100-650字
+- **質量優先**：根據實際內容決定長度，寧可簡短精準也不要冗長重複
 - **基於原文**：嚴格基於本頁內容
-- 如某維度無內容可簡述「本頁未涉及」
+- **允許簡短**：若某維度確實無內容，簡短說明即可
 """
 
 
@@ -345,7 +349,8 @@ class SummaryEngine:
                     {"role": "user", "content": user_prompt},
                 ],
                 # 移除 response_format 以允許 TOON 格式輸出
-                temperature=0.1,  # 極低溫度值，確保嚴格依據原文分析，不過度想像
+                max_tokens=2000,  # 增加token限制，讓AI能生成更詳細的分析
+                temperature=0.3,  # 提高溫度值，給予AI更多思考空間，生成更豐富的洞察
             )
             content = response.choices[0].message.content or ""
             
@@ -429,20 +434,17 @@ class SummaryEngine:
 
     async def summarize_page(self, page: ClassifiedPage) -> PageDetailedAnalysis:
         """生成頁面的四維度詳細分析"""
+        # 跳過目錄、封面、純圖片、空白頁，這些頁面不會出現在報告中
         if page.classification in SKIP_CLASS_LABELS and page.classification != "normal":
-            reason = self._ensure_min_length(
-                page.skip_reason or "〈本頁跳過〉內容不足以生成摘要。",
-                55,
-            )
             return PageDetailedAnalysis(
                 page_number=page.page_number,
                 classification=page.classification,
-                page_summary=reason,
+                page_summary="",
                 key_findings="",
                 data_points="",
                 risks_opportunities="",
                 skipped=True,
-                skip_reason=page.skip_reason,
+                skip_reason=f"已跳過{page.classification}類型頁面",
             )
 
         text = page.text[:4000]
@@ -453,16 +455,17 @@ class SummaryEngine:
         # 檢查是否成功解析四維度
         if "page_summary" in data:
             # 成功解析四維度分析
-            page_summary = self._ensure_min_length(data.get("page_summary", "").strip(), 80)
-            key_findings = self._ensure_min_length(data.get("key_findings", "").strip(), 60)
-            data_points = self._ensure_min_length(data.get("data_points", "").strip(), 60)
-            risks_opportunities = self._ensure_min_length(data.get("risks_opportunities", "").strip(), 60)
+            # 降低最低字數要求，避免因字數不足而丟棄內容
+            page_summary = self._ensure_min_length(data.get("page_summary", "").strip(), 15)  # 從150降到15
+            key_findings = self._ensure_min_length(data.get("key_findings", "").strip(), 10)  # 從100降到10
+            data_points = self._ensure_min_length(data.get("data_points", "").strip(), 10)  # 從100降到10
+            risks_opportunities = self._ensure_min_length(data.get("risks_opportunities", "").strip(), 10)  # 從100降到10
             
-            # 限制最大長度（確保總計不超過650字）
-            page_summary = self._trim_to_limit(page_summary, 200)
-            key_findings = self._trim_to_limit(key_findings, 150)
-            data_points = self._trim_to_limit(data_points, 150)
-            risks_opportunities = self._trim_to_limit(risks_opportunities, 150)
+            # 限制最大長度（確保總計不超過1300字）
+            page_summary = self._trim_to_limit(page_summary, 400)
+            key_findings = self._trim_to_limit(key_findings, 300)
+            data_points = self._trim_to_limit(data_points, 300)
+            risks_opportunities = self._trim_to_limit(risks_opportunities, 300)
             
             return PageDetailedAnalysis(
                 page_number=page.page_number,
@@ -671,14 +674,10 @@ class SummaryEngine:
 
     @staticmethod
     def _ensure_min_length_static(text: str, min_chars: int) -> str:
+        """確保最小長度，但如果內容本身就短，直接返回不填充"""
         stripped = text.strip()
-        if len(stripped) >= min_chars:
+        # 如果有内容就直接返回，不管长度
+        if stripped:
             return stripped
-        if not stripped:
-            stripped = "內容過短，請人工補充。"
-        padding_needed = min_chars - len(stripped)
-        padding = "" if padding_needed <= 0 else f"（補充：內容僅 {len(stripped)} 字，建議檢視原文補強。）"
-        result = stripped + padding
-        if len(result) < min_chars:
-            result += "請參考原頁面取得完整上下文。"
-        return result
+        # 只有在完全没有内容时才返回提示
+        return "本頁無相關內容。"

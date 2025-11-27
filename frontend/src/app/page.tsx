@@ -737,7 +737,9 @@ export default function Home() {
         <section className="space-y-5 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-inner">
           <h3 className="text-lg font-semibold text-slate-800">逐頁重點與關鍵字</h3>
           <div className="space-y-5 max-h-[520px] overflow-y-auto pr-2">
-            {analysisResult.page_summaries.map((page) => (
+            {analysisResult.page_summaries
+              .filter((page) => !page.skipped) // 过滤掉跳过的页面（目录、封面、纯图片、空白页等）
+              .map((page) => (
               <article
                 key={page.page_number}
                 className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm"
@@ -773,9 +775,6 @@ export default function Home() {
                 ) : (
                   <p className="mt-3 text-xs text-slate-400">本頁尚無關鍵字。</p>
                 )}
-                {page.skipped && page.skip_reason ? (
-                  <p className="mt-3 text-xs text-slate-500">原因：{page.skip_reason}</p>
-                ) : null}
               </article>
             ))}
           </div>
