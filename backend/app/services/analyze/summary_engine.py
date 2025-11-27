@@ -52,11 +52,19 @@ class RateLimiter:
 
 
 SYSTEM_PROMPT = (
-    "你是文件壓縮摘要專家，擅長結論先行與精準行動建議。"
-    "全程使用繁體中文，禁止逐字複製原文，也不得使用省略號「..」「…」。"
-    "每個要點須含主詞、動詞與佐證，語句要完整自然。"
-    "【重要約束】嚴格依據文件原文內容進行分析，禁止想像、推測或補充任何原文沒有提及的資訊。"
-    "僅基於實際可見的數據、結論和明確陳述進行摘要，不得添加外部知識或假設性內容。"
+    "您是專業的商業文件分析專家，專精於提煉核心洞察與可執行建議。\n"
+    "\n"
+    "## 核心原則\n"
+    "1. **精準性**：嚴格基於原文數據與明確陳述，禁止臆測或補充未提及資訊\n"
+    "2. **完整性**：每項要點需包含主體、行動與實證依據，語句須自成一體\n"
+    "3. **專業性**：採用繁體中文商業語彙，避免口語化或模糊表述\n"
+    "4. **客觀性**：不添加外部知識、個人觀點或假設性推論\n"
+    "\n"
+    "## 語言規範\n"
+    "- 全程使用繁體中文，保持專業學術風格\n"
+    "- 禁止逐字摘抄原文，需重新組織表達\n"
+    "- 嚴禁使用省略號（「..」「…」）或未完成句式\n"
+    "- 數據需保留完整（數值、單位、時間、對比基準）"
 )
 
 PAGE_PROMPT_TEMPLATE = """
@@ -66,32 +74,96 @@ PAGE_PROMPT_TEMPLATE = """
 """
 
 PAGE_INSTRUCTIONS = """
-請將上列內容整理成 4 條要點（若內容極少可減至 3 條）：
-- 每條至少 55 個全形字，最多 110 字。
-- 僅保留單一資訊重點：結論、佐證數據、風險或待辦。
-- 有數據須保留數值、單位、時間與對比方向。
-- 語句需完整，可直接閱讀，不可使用條列符號或頁碼字樣。
-請以 JSON 輸出：{"bullets": ["要點一", "要點二", ...]}
-禁止回傳多餘欄位。
+## 任務要求
+請將上述內容精煉為 3-4 條核心要點，每條需符合以下標準：
+
+### 內容規範
+- **長度控制**：每條 55-110 個全形字（約 1-2 句完整表述）
+- **資訊聚焦**：單一重點（策略結論 / 量化數據 / 風險警示 / 行動方案）
+- **數據完整**：必須保留數值、單位、時間範圍及對比基準
+- **語句獨立**：可單獨理解，無需參照前後文
+
+### 禁止事項
+- 不使用條列符號（•、-）或頁碼標記
+- 不引用圖表編號或章節標題
+- 不添加原文未提及的推測或建議
+
+### 輸出格式（TOON）
+```
+page_summary:
+  bullets[4]: |
+    要點一的完整內容
+    要點二的完整內容
+    要點三的完整內容
+    要點四的完整內容
+```
+
+注意：使用 | 符號後每條要點獨立一行，無需額外標記。
 """
 
 GLOBAL_PROMPT_TEMPLATE = """
-依據下列逐頁重點彙整全局摘要：
+## 全局彙整任務
+
+### 輸入資料
+以下為各頁面提煉的核心重點：
 {page_points}
 
-請輸出 JSON：
-{{
-  "overview": ["重點1", "重點2", "重點3", "重點4", "重點5"],
-  "expansions": {{
-    "key_conclusions": "段落文字",
-    "core_data": "段落文字",
-    "risks_and_actions": "段落文字"
-  }}
-}}
-規則：
-- overview 每條句子需為 60~120 個全形字，至少 5 條，合計須超過 300 字。
-- 三段擴充各為 200~400 字，須點出來源頁碼（格式：〔p.x〕或範圍）。務必完整表達分析結論，不可草率收尾。
-- 強調結論與可行動事項，語氣務必明確，不得敷衍。
+### 輸出要求
+
+#### 1. 執行摘要 (overview)
+- **數量**：5-7 條關鍵洞察
+- **長度**：每條 60-120 全形字
+- **總計**：合計至少 300 字
+- **內容**：跨頁綜合分析，非單純彙總
+- **風格**：決策層級視角，直指核心議題
+
+#### 2. 深度分析 (expansions)
+提供三個主題的展開論述，每項 200-400 字：
+
+a) **戰略結論 (key_conclusions)**
+   - 核心發現與策略意涵
+   - 必須標註來源頁碼（格式：〔p.3〕或〔p.5-7〕）
+   - 強調因果關係與業務影響
+
+b) **關鍵數據 (core_data)**
+   - 重要量化指標與趨勢
+   - 完整呈現數值、單位、時間與對比
+   - 註明數據出處頁碼
+
+c) **風險與行動 (risks_and_actions)**
+   - 潛在風險與應對建議
+   - 明確可執行的行動方案
+   - 標示相關頁碼參照
+
+### 輸出格式（TOON）
+```
+global_summary:
+  overview[7]: |
+    第一條執行摘要的完整內容
+    第二條執行摘要的完整內容
+    第三條執行摘要的完整內容
+    第四條執行摘要的完整內容
+    第五條執行摘要的完整內容
+    第六條執行摘要的完整內容
+    第七條執行摘要的完整內容
+  expansions:
+    key_conclusions: |
+      戰略結論的完整段落內容（200-400字）
+      務必包含來源頁碼標記〔p.x〕
+      表達需完整，不可草率收尾
+    core_data: |
+      關鍵數據的完整段落內容（200-400字）
+      包含數值、單位、時間與頁碼標記
+    risks_and_actions: |
+      風險與行動的完整段落內容（200-400字）
+      明確指出風險點與具體行動方案
+```
+
+### 品質標準
+- 語氣明確果斷，避免模糊表述（「可能」「也許」等）
+- 結論需基於實證，不做無根據推測
+- 段落結構完整，邏輯清晰連貫
+- 每段必須自然收尾，不可戛然而止
 """
 
 
@@ -124,8 +196,64 @@ class SummaryEngine:
                    f"concurrency={self._concurrency}")
 
 
-    async def _chat_json(self, system_prompt: str, user_prompt: str) -> dict:
-        """呼叫 LLM 並嘗試將回傳內容解析成 JSON。
+    @staticmethod
+    def _parse_toon_bullets(content: str) -> list:
+        """
+        解析 TOON 格式的 bullets 列表
+        
+        格式範例:
+        bullets[4]: |
+          要點一
+          要點二
+          要點三
+          要點四
+        
+        Returns:
+            str 列表
+        """
+        import re
+        
+        # 尋找 bullets[N]: | 後的內容
+        pattern = r'bullets\[\d+\]:\s*\|\s*\n((?:[ \t]+.+\n?)+)'
+        match = re.search(pattern, content)
+        
+        if match:
+            bullets_block = match.group(1)
+            # 分割每行並清理空白
+            bullets = [line.strip() for line in bullets_block.split('\n') if line.strip()]
+            return bullets
+        
+        return []
+    
+    @staticmethod
+    def _parse_toon_multiline(content: str, key: str) -> str:
+        """
+        解析 TOON 格式的多行文字段落
+        
+        格式範例:
+        key_conclusions: |
+          段落內容第一行
+          段落內容第二行
+        
+        Returns:
+            完整段落文字
+        """
+        import re
+        
+        # 尋找 key: | 後的內容（支持縮進）
+        pattern = rf'{key}:\s*\|\s*\n((?:[ \t]+.+\n?)+)'
+        match = re.search(pattern, content)
+        
+        if match:
+            text_block = match.group(1)
+            # 移除每行的縮進，合併為段落
+            lines = [line.strip() for line in text_block.split('\n') if line.strip()]
+            return '\n'.join(lines)
+        
+        return ""
+
+    async def _chat_toon(self, system_prompt: str, user_prompt: str) -> dict:
+        """呼叫 LLM 並解析 TOON 格式回傳內容。
 
         OpenAI SDK 會自動處理 429 錯誤和重試。
         """
@@ -140,34 +268,64 @@ class SummaryEngine:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                response_format={"type": "json_object"},
+                # 移除 response_format 以允許 TOON 格式輸出
                 temperature=0.1,  # 極低溫度值，確保嚴格依據原文分析，不過度想像
             )
-            content = response.choices[0].message.content or "{}"
+            content = response.choices[0].message.content or ""
             
-            # 調試日誌：顯示 API 返回內容的前 200 字元
-            logger.info(f"API 返回內容（前200字）: {content[:200]}")
+            # 調試日誌：顯示 API 返回內容的前 300 字元
+            logger.info(f"API 返回內容（前300字）: {content[:300]}")
             
-            # 清理 markdown 代碼塊（某些 LLM 提供商會用 ```json ... ``` 包裹 JSON）
+            # 清理 markdown 代碼塊
             content = content.strip()
             if content.startswith("```"):
-                # 移除開頭的 ```json 或 ```
-                content = re.sub(r'^```(?:json)?\s*\n?', '', content)
+                # 移除開頭的 ```toon 或 ```
+                content = re.sub(r'^```(?:toon)?\s*\n?', '', content)
                 # 移除結尾的 ```
                 content = re.sub(r'\n?```\s*$', '', content)
                 content = content.strip()
-                logger.info(f"清理 markdown 代碼塊後: {content[:200]}")
+                logger.info(f"清理 markdown 代碼塊後: {content[:300]}")
             
-            parsed = json.loads(content)
+            # 解析 TOON 格式
+            parsed = {}
             
-            # 調試日誌：顯示解析後的 keys
-            logger.info(f"解析後的 JSON keys: {list(parsed.keys())}")
+            # 檢查是否為 page_summary 格式
+            if 'page_summary' in content or 'bullets[' in content:
+                bullets = self._parse_toon_bullets(content)
+                parsed = {"bullets": bullets}
+                logger.info(f"解析 page_summary: {len(bullets)} 條要點")
+            
+            # 檢查是否為 global_summary 格式
+            elif 'global_summary' in content or 'overview[' in content:
+                overview = self._parse_toon_bullets(content.replace('overview[', 'bullets['))
+                
+                # 解析三個擴充段落
+                key_conclusions = self._parse_toon_multiline(content, 'key_conclusions')
+                core_data = self._parse_toon_multiline(content, 'core_data')
+                risks_and_actions = self._parse_toon_multiline(content, 'risks_and_actions')
+                
+                parsed = {
+                    "overview": overview,
+                    "expansions": {
+                        "key_conclusions": key_conclusions,
+                        "core_data": core_data,
+                        "risks_and_actions": risks_and_actions
+                    }
+                }
+                logger.info(f"解析 global_summary: {len(overview)} 條 overview")
+            else:
+                # Fallback: 嘗試當作純文字切分
+                logger.warning("無法識別 TOON 格式，嘗試 fallback 解析")
+                lines = [line.strip() for line in content.split('\n') if line.strip() and not line.strip().startswith('#')]
+                parsed = {"bullets": lines[:5]} if lines else {}
             
             return parsed
+            
         except Exception as exc:
             # 失敗時返回空 dict，使用 fallback 機制
             logger.error(f"API 調用失敗: {exc}")
             return {}
+
 
     async def summarize_page(self, page: ClassifiedPage) -> PageSummaryResult:
         if page.classification in SKIP_CLASS_LABELS and page.classification != "normal":
@@ -186,7 +344,7 @@ class SummaryEngine:
         text = page.text[:4000]
         prompt = PAGE_PROMPT_TEMPLATE.format(page_no=page.page_number, page_class=page.classification)
         user_prompt = f"{prompt}\n{text}\n\n{PAGE_INSTRUCTIONS}".strip()
-        data = await self._chat_json(SYSTEM_PROMPT, user_prompt)
+        data = await self._chat_toon(SYSTEM_PROMPT, user_prompt)
         raw_bullets = [line.strip() for line in data.get("bullets", []) if line and line.strip()]
         bullets: List[str] = []
         for bullet in raw_bullets[:5]:
@@ -229,7 +387,7 @@ class SummaryEngine:
                 page_points.append(f"{bullet}")
 
         payload = "\n".join(page_points[:160]) or "暫無要點"
-        data = await self._chat_json(SYSTEM_PROMPT, GLOBAL_PROMPT_TEMPLATE.format(page_points=payload))
+        data = await self._chat_toon(SYSTEM_PROMPT, GLOBAL_PROMPT_TEMPLATE.format(page_points=payload))
 
         overview = [self._ensure_min_length(item.strip(), 60) for item in data.get("overview", []) if item and item.strip()]
         expansions_raw = data.get("expansions", {})
