@@ -11,7 +11,7 @@ class LLMClient:
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 
-    def chat(self, messages: List[dict], temperature: float = 0.2) -> str:
+    def chat(self, messages: List[dict], temperature: float = 0.1) -> str:
         resp = self.client.chat.completions.create(
             model=self.model,
             messages=messages,

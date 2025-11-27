@@ -55,6 +55,8 @@ SYSTEM_PROMPT = (
     "你是文件壓縮摘要專家，擅長結論先行與精準行動建議。"
     "全程使用繁體中文，禁止逐字複製原文，也不得使用省略號「..」「…」。"
     "每個要點須含主詞、動詞與佐證，語句要完整自然。"
+    "【重要約束】嚴格依據文件原文內容進行分析，禁止想像、推測或補充任何原文沒有提及的資訊。"
+    "僅基於實際可見的數據、結論和明確陳述進行摘要，不得添加外部知識或假設性內容。"
 )
 
 PAGE_PROMPT_TEMPLATE = """
@@ -138,6 +140,7 @@ class SummaryEngine:
                     {"role": "user", "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},
+                temperature=0.1,  # 極低溫度值，確保嚴格依據原文分析，不過度想像
             )
             content = response.choices[0].message.content or "{}"
             
