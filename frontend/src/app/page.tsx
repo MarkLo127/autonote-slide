@@ -229,13 +229,14 @@ export default function Home() {
   }, [customBaseUrl, hasLoadedSettings]);
 
   // Sync analysis_level with selectedModel for all providers
+  // 只有在 analysis_level 改变时才自动更新模型
   useEffect(() => {
     if (!levelMapping[selectedProvider]) return;
     const modelToSet = levelMapping[selectedProvider][analysisLevel];
-    if (modelToSet && selectedModel !== modelToSet) {
+    if (modelToSet) {
       setSelectedModel(modelToSet);
     }
-  }, [analysisLevel, selectedProvider, levelMapping, selectedModel]);
+  }, [analysisLevel, selectedProvider, levelMapping]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;

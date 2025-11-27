@@ -506,12 +506,11 @@ class SummaryEngine:
             if progress_callback:
                 await progress_callback(idx + 1)
 
-
         await asyncio.gather(*(_worker(idx, page) for idx, page in enumerate(pages)))
         return [r for r in results if r is not None]
 
     async def synthesize_global(self, page_results: List[PageDetailedAnalysis]) -> GlobalSummary:
-        """基於四維度頁面分析生成全局彙整"""
+        """基於四維度頁面分析生成全局彙整 - 每個維度分別生成"""
         # 分別收集各維度內容
         page_summaries = []
         key_findings = []
@@ -520,69 +519,106 @@ class SummaryEngine:
         
         for page in page_results:
             if not page.skipped:
-                page_summaries.append(f"〔p.{page.page_number}〕{page.page_summary}")
-                key_findings.append(f"〔p.{page.page_number}〕{page.key_findings}")
-                data_points.append(f"〔p.{page.page_number}〕{page.data_points}")
-                risks_opportunities.append(f"〔p.{page.page_number}〕{page.risks_opportunities}")
+                page_summaries.append(f"【第{page.page_number}頁】{page.page_summary}")
+                if page.key_findings:
+                    key_findings.append(f"【第{page.page_number}頁】{page.key_findings}")
+                if page.data_points:
+                    data_points.append(f"【第{page.page_number}頁】{page.data_points}")
+                if page.risks_opportunities:
+                    risks_opportunities.append(f"【第{page.page_number}頁】{page.risks_opportunities}")
         
-        # 組織分維度的提示詞輸入（限制每個維度的字數以避免超token）
-        page_summaries_text = "\n\n".join(page_summaries[:80])  # 約前80頁
-        key_findings_text = "\n\n".join(key_findings[:80])
-        data_points_text = "\n\n".join(data_points[:80])
-        risks_opportunities_text = "\n\n".join(risks_opportunities[:80])
-        
-        # 調用 LLM 生成全局分析
-        prompt = GLOBAL_PROMPT_TEMPLATE.format(
-            page_summaries=page_summaries_text or "暫無內容",
-            key_findings=key_findings_text or "暫無內容",
-            data_points=data_points_text or "暫無內容",
-            risks_opportunities=risks_opportunities_text or "暫無內容"
-        )
-        
-        data = await self._chat_toon(SYSTEM_PROMPT, prompt)
-
-        # 處理 overview - 現在是單一段落而非列表
-        overview_text = data.get("overview", "")
-        if isinstance(overview_text, list):
-            # Fallback: 如果返回列表，合併為段落
-            overview_text = " ".join([str(item).strip() for item in overview_text if item])
-        
-        # 確保 overview 段落至少 300 字
-        overview_text = self._ensure_min_length(overview_text.strip(), 300)
-        # 限制最大 600 字
-        overview_text = self._trim_to_limit(overview_text, 600)
-        
-        expansions_raw = data.get("expansions", {})
-        
-        # 調試日誌
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"全局彙整解析結果 - overview 長度: {len(overview_text)}")
-        logger.info(f"expansions_raw 鍵: {expansions_raw.keys() if expansions_raw else '無'}")
-        if expansions_raw:
-            logger.info(f"key_conclusions 長度: {len(expansions_raw.get('key_conclusions', ''))}")
-            logger.info(f"core_data 長度: {len(expansions_raw.get('core_data', ''))}")
-            logger.info(f"risks_and_actions 長度: {len(expansions_raw.get('risks_and_actions', ''))}")
+        
+        # 1. 生成全局總覽（基於所有頁面的page_summary）
+        overview_prompt = f"""
+請基於以下各頁面的總覽內容，生成一段300-600字的全局總覽段落：
 
+{chr(10).join(page_summaries[:60])}
+
+要求：
+- 提煉整份文件的核心主題與結構
+- 說明文件類型、主要內容與目的
+- 用一段完整、連貫的段落呈現
+- 字數：300-600字
+"""
+        
+        overview_data = await self._chat_toon(SYSTEM_PROMPT, overview_prompt)
+        overview_text = overview_data.get("page_summary", "") or overview_data.get("summary", "") or overview_data.get("overview", "")
+        overview_text = self._trim_to_limit(overview_text.strip(), 600)
+        logger.info(f"生成全局總覽: {len(overview_text)} 字")
+        
+        # 2. 生成關鍵結論（基於所有頁面的key_findings）
+        if key_findings:
+            conclusions_prompt = f"""
+請基於以下各頁面的關鍵發現，提煉出200-400字的整體關鍵結論：
+
+{chr(10).join(key_findings[:60])}
+
+要求：
+- 提煉最重要的發現與結論
+- 識別主要趨勢或模式
+- 用一段完整、連貫的段落呈現
+- 字數：200-400字
+"""
+            conclusions_data = await self._chat_toon(SYSTEM_PROMPT, conclusions_prompt)
+            key_conclusions = conclusions_data.get("page_summary", "") or conclusions_data.get("summary", "") or conclusions_data.get("key_conclusions", "")
+            key_conclusions = self._trim_to_limit(key_conclusions.strip(), 400)
+            logger.info(f"生成關鍵結論: {len(key_conclusions)} 字")
+        else:
+            key_conclusions = "本文件未涉及重大發現或結論。"
+        
+        # 3. 生成核心數據（基於所有頁面的data_points）
+        if data_points:
+            data_prompt = f"""
+請基於以下各頁面的核心數據，彙整出200-400字的核心數據總結：
+
+{chr(10).join(data_points[:60])}
+
+要求：
+- 整合最重要的財務或業務數據
+- 保留關鍵數值、時間、對比
+- 用一段完整、連貫的段落呈現
+- 字數：200-400字
+"""
+            data_response = await self._chat_toon(SYSTEM_PROMPT, data_prompt)
+            core_data = data_response.get("page_summary", "") or data_response.get("summary", "") or data_response.get("core_data", "")
+            core_data = self._trim_to_limit(core_data.strip(), 400)
+            logger.info(f"生成核心數據: {len(core_data)} 字")
+        else:
+            core_data = "本文件未涉及具體量化數據。"
+        
+        # 4. 生成風險與建議（基於所有頁面的risks_opportunities）
+        if risks_opportunities:
+            risks_prompt = f"""
+請基於以下各頁面的風險與機會，彙整出200-400字的風險與建議總結：
+
+{chr(10).join(risks_opportunities[:60])}
+
+要求：
+- 識別最重要的風險因素與機會
+- 提供可行的應對建議
+- 用一段完整、連貫的段落呈現
+- 字數：200-400字
+"""
+            risks_data = await self._chat_toon(SYSTEM_PROMPT, risks_prompt)
+            risks_and_actions = risks_data.get("page_summary", "") or risks_data.get("summary", "") or risks_data.get("risks_and_actions", "")
+            risks_and_actions = self._trim_to_limit(risks_and_actions.strip(), 400)
+            logger.info(f"生成風險與建議: {len(risks_and_actions)} 字")
+        else:
+            risks_and_actions = "本文件未明確提及風險或機會。"
+        
+        # 組裝最終結果
         expansions = GlobalSummaryExpansions(
-            key_conclusions=self._trim_to_limit(
-                self._ensure_min_length(expansions_raw.get("key_conclusions", ""), 200),
-                400,
-            ),
-            core_data=self._trim_to_limit(
-                self._ensure_min_length(expansions_raw.get("core_data", ""), 200),
-                400,
-            ),
-            risks_and_actions=self._trim_to_limit(
-                self._ensure_min_length(expansions_raw.get("risks_and_actions", ""), 200),
-                400,
-            ),
+            key_conclusions=key_conclusions,
+            core_data=core_data,
+            risks_and_actions=risks_and_actions,
         )
 
-        # 將單一 overview 段落包裝為列表以保持數據結構兼容
-        overview_bullets = [overview_text] if overview_text else ["〔全局摘要〕（待補要點）本文檔內容不足以生成完整摘要，建議人工檢視原始文件以獲取完整上下文資訊。"]
+        # 將 overview 包裝為列表以保持數據結構兼容
+        overview_bullets = [overview_text] if overview_text else ["〔全局摘要〕本文檔內容不足以生成完整摘要。"]
 
-        return GlobalSummary(bullets=overview_bullets, expansions=expansions)
+        return GlobalSummary(bullets=overview_bullets,  expansions=expansions)
 
 
     @staticmethod
