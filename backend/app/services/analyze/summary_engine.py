@@ -75,68 +75,46 @@ PAGE_PROMPT_TEMPLATE = """
 
 PAGE_INSTRUCTIONS = """
 ## 任務要求
-請對上述內容進行多維度深入分析，生成以下四個部分的結構化內容：
+請對上述內容進行精簡的四維度分析，**總字數控制在100-650字以內**：
 
-### 1. 頁面總覽 (page_summary: 200-300字)
-- **目的**：概括本頁的主要內容、主題與脈絡
-- **內容**：
-  - 本頁討論的核心主題是什麼？
-  - 屬於文件的哪個部分（如財務報表、市場分析、風險披露等）？
-  - 主要涵蓋哪些方面的資訊？
-- **風格**：宏觀視角，提供整體框架理解
-- **要求**：完整段落，流暢連貫，不可使用列點
+### 1. 頁面總覽 (page_summary: 80-200字)
+- 概括本頁核心主題與主要內容
+- 屬於文件的哪個部分
+- 完整段落，流暢連貫
 
-### 2. 關鍵發現 (key_findings: 150-250字)
-- **目的**：提煉本頁最重要的結論、洞察或核心觀點
-- **內容**：
-  - 本頁最值得關注的發現是什麼？
-  - 有哪些重要的結論或判斷？
-  - 揭示了什麼趨勢或模式？
-- **風格**：聚焦核心，突出關鍵洞察
-- **要求**：完整段落，直指重點，避免贅述
+### 2. 關鍵發現 (key_findings: 60-150字)
+- 本頁最值得關注的發現或結論
+- 揭示的趨勢或模式
+- 直指重點，避免贅述
 
-### 3. 核心數據 (data_points: 150-250字)
-- **目的**：列出本頁的重要量化指標、數值與比較
-- **內容**：
-  - 關鍵的財務數據或業務指標有哪些？
-  - 數值的時間範圍、單位、對比基準是什麼？
-  - 呈現什麼增長、下降或變化趨勢？
-- **風格**：數據導向，精確呈現量化資訊
-- **要求**：完整段落，保留所有數值細節
+### 3. 核心數據 (data_points: 60-150字)
+- 關鍵財務數據或業務指標
+- 保留完整數值、單位、時間與對比
+- 精確呈現量化資訊
 
-### 4. 風險與機會 (risks_opportunities: 150-250字)
-- **目的**：識別本頁提及的潛在風險、警示或機會
-- **內容**：
-  - 提到哪些風險因素或挑戰？
-  - 有哪些警示性陳述或不確定性？
-  - 揭示了什麼機會或正面因素？
-- **風格**：風險導向，關注需要警惕的要點
-- **要求**：完整段落，明確指出風險與機會
+### 4. 風險與機會 (risks_opportunities: 60-150字)
+- 潛在風險因素或挑戰
+- 機會或正面因素
+- 明確指出需警惕的要點
 
 ### 輸出格式（TOON）
 ```
 page_detailed_analysis:
   page_summary: |
-    本頁為XX章節的XX部分，主要討論...（200-300字完整段落）
+    本頁為XX部分，討論...
   key_findings: |
-    本頁最關鍵的發現是...此外...（150-250字完整段落）
+    核心發現為...
   data_points: |
-    財務數據顯示...同時...（150-250字完整段落）
+    關鍵數據包括...
   risks_opportunities: |
-    潛在風險包括...另一方面...（150-250字完整段落）
+    主要風險為...
 ```
 
 ### 品質標準
-- **禁止條列式**：所有四個部分都必須是連貫段落，不可使用符號或編號分點
-- **語氣專業**：採用商業分析語彙，避免口語化
-- **基於原文**：嚴格基於本頁內容，不添加外部知識或推測
-- **結構完整**：每個段落都需有開頭、主體與結尾，邏輯清晰
-- **長度符合**：各維度嚴格控制在指定字數範圍內
-
-### 注意事項
-- 如果某個維度在本頁中沒有相關內容，可用「本頁未涉及此維度的具體資訊」簡要說明
-- 確保四個維度不重複相同內容，各有側重點
-- 使用連接詞使段落流暢（例如：此外、同時、然而、進而）
+- **禁止條列式**：必須是連貫段落
+- **簡潔精準**：每個維度簡明扼要，總計100-650字
+- **基於原文**：嚴格基於本頁內容
+- 如某維度無內容可簡述「本頁未涉及」
 """
 
 
@@ -489,16 +467,16 @@ class SummaryEngine:
         # 檢查是否成功解析四維度
         if "page_summary" in data:
             # 成功解析四維度分析
-            page_summary = self._ensure_min_length(data.get("page_summary", "").strip(), 200)
-            key_findings = self._ensure_min_length(data.get("key_findings", "").strip(), 150)
-            data_points = self._ensure_min_length(data.get("data_points", "").strip(), 150)
-            risks_opportunities = self._ensure_min_length(data.get("risks_opportunities", "").strip(), 150)
+            page_summary = self._ensure_min_length(data.get("page_summary", "").strip(), 80)
+            key_findings = self._ensure_min_length(data.get("key_findings", "").strip(), 60)
+            data_points = self._ensure_min_length(data.get("data_points", "").strip(), 60)
+            risks_opportunities = self._ensure_min_length(data.get("risks_opportunities", "").strip(), 60)
             
-            # 限制最大長度
-            page_summary = self._trim_to_limit(page_summary, 300)
-            key_findings = self._trim_to_limit(key_findings, 250)
-            data_points = self._trim_to_limit(data_points, 250)
-            risks_opportunities = self._trim_to_limit(risks_opportunities, 250)
+            # 限制最大長度（確保總計不超過650字）
+            page_summary = self._trim_to_limit(page_summary, 200)
+            key_findings = self._trim_to_limit(key_findings, 150)
+            data_points = self._trim_to_limit(data_points, 150)
+            risks_opportunities = self._trim_to_limit(risks_opportunities, 150)
             
             return PageDetailedAnalysis(
                 page_number=page.page_number,
@@ -517,7 +495,7 @@ class SummaryEngine:
                 page_number=page.page_number,
                 classification=page.classification,
                 page_summary=fallback_text,
-                key_findings="本頁未能生成詳細分析,請參考頁面總覽。",
+                key_findings="本頁未能生成詳細分析。",
                 data_points="本頁未能提取核心數據。",
                 risks_opportunities="本頁未能識別風險與機會。",
                 skipped=False,
@@ -586,6 +564,16 @@ class SummaryEngine:
         overview_text = self._trim_to_limit(overview_text, 600)
         
         expansions_raw = data.get("expansions", {})
+        
+        # 調試日誌
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"全局彙整解析結果 - overview 長度: {len(overview_text)}")
+        logger.info(f"expansions_raw 鍵: {expansions_raw.keys() if expansions_raw else '無'}")
+        if expansions_raw:
+            logger.info(f"key_conclusions 長度: {len(expansions_raw.get('key_conclusions', ''))}")
+            logger.info(f"core_data 長度: {len(expansions_raw.get('core_data', ''))}")
+            logger.info(f"risks_and_actions 長度: {len(expansions_raw.get('risks_and_actions', ''))}")
 
         expansions = GlobalSummaryExpansions(
             key_conclusions=self._trim_to_limit(
@@ -607,12 +595,38 @@ class SummaryEngine:
 
         return GlobalSummary(bullets=overview_bullets, expansions=expansions)
 
+
     @staticmethod
     def _trim_to_limit(text: str, limit: int) -> str:
+        """智能截斷文字，在句子邊界處結束而非中途截斷"""
         stripped = text.strip()
         if len(stripped) <= limit:
             return stripped
-        return stripped[: limit - 1].rstrip() + "。"
+        
+        # 如果需要截斷，在句子邊界處截斷
+        truncated = stripped[:limit]
+        
+        # 定義句子結束標點（優先級從高到低）
+        sentence_endings = ['。', '！', '？', '；', '：', '，', '、']
+        
+        # 從後往前找最近的句子結束標點
+        best_pos = -1
+        for ending in sentence_endings:
+            pos = truncated.rfind(ending)
+            if pos > len(truncated) * 0.7:  # 至少保留70%的內容
+                best_pos = pos
+                break
+        
+        if best_pos > 0:
+            # 在標點符號之後截斷（包含標點）
+            return truncated[:best_pos + 1].rstrip()
+        else:
+            # 如果找不到合適的標點，在最後一個空格處截斷
+            last_space = truncated.rfind(' ')
+            if last_space > len(truncated) * 0.8:
+                return truncated[:last_space].rstrip() + "。"
+            # 最後的fallback：硬截斷但加句號
+            return truncated.rstrip() + "。"
 
     @staticmethod
     def _prefix_bullet(page_number: int, bullet: str) -> str:
