@@ -66,7 +66,8 @@ SYSTEM_PROMPT = (
     "- 確保專業名詞準確（如：revenue 營收、profit 利潤、market share 市場佔有率）\n"
     "- 禁止逐字摘抄原文，需重新組織表達\n"
     "- 嚴禁使用省略號（「..」「…」）或未完成句式\n"
-    "- 所有句子必須完整，禁止中途截斷\n"
+    "- 所有句子必須完整，每個段落必須有完整的結尾，絕對禁止中途截斷\n"
+    "- 如果內容即將超過長度限制，請提前結束在完整句子處，不要開始新句子\n"
     "- 數據需保留完整（數值、單位、時間、對比基準）"
 )
 
@@ -358,7 +359,7 @@ class SummaryEngine:
                     {"role": "user", "content": user_prompt},
                 ],
                 # 移除 response_format 以允許 TOON 格式輸出
-                max_tokens=2000,  # 增加token限制，讓AI能生成更詳細的分析
+                max_tokens=4000,  # 足夠的token限制以避免內容被截斷
                 temperature=0.3,  # 提高溫度值，給予AI更多思考空間，生成更豐富的洞察
             )
             content = response.choices[0].message.content or ""
@@ -462,7 +463,7 @@ class SummaryEngine:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=2000,
+                max_tokens=4000,  # 足夠的token限制以避免內容被截斷
                 temperature=0.3,
             )
             content = response.choices[0].message.content or ""
@@ -783,9 +784,13 @@ class SummaryEngine:
             last_space = truncated.rfind(' ')
             if last_space > len(truncated) * 0.8:
                 return truncated[:last_space].rstrip() + "。"
-            # 最後的fallback：返回空字符串而不是硬截斷不完整的句子
-            # 這樣可以避免產生像「透 過」這樣的不完整片段
-            return ""
+            # 最後的fallback：返回原文而不是空字符串
+            # 如果文字已經很短，保留完整內容總比丟失好
+            if len(stripped) <= limit * 1.2:  # 如果只超出20%，保留完整
+                return stripped
+            # 真的太長，在80%處硬截斷並加句號
+            safe_pos = int(limit * 0.8)
+            return stripped[:safe_pos].rstrip() + "。"
 
     @staticmethod
     def _prefix_bullet(page_number: int, bullet: str) -> str:
