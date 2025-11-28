@@ -56,10 +56,29 @@ type ProvidersResponse = {
   level_mapping: Record<string, Record<string, string>>;
 };
 
-const rawBackendOrigin =
-  process.env.NEXT_PUBLIC_BACKEND_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:8000";
+// Smart backend URL resolution:
+// 1. Use explicit environment variable if set
+// 2. In production, use Railway backend URL
+// 3. In development, use localhost
+const getDefaultBackendUrl = () => {
+  // If environment variable is explicitly set, use it
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL;
+  }
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+  
+  // In production environment, use Railway backend URL
+  if (process.env.NODE_ENV === "production") {
+    return "https://autonote-backend.up.railway.app";
+  }
+  
+  // In development, use localhost
+  return "http://localhost:8000";
+};
+
+const rawBackendOrigin = getDefaultBackendUrl();
 const sanitizeBase = (base: string) => base.replace(/\/$/, "");
 
 const resolveBrowserBackendBase = (base: string) => {
