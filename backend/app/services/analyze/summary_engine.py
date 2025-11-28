@@ -62,8 +62,11 @@ SYSTEM_PROMPT = (
     "\n"
     "## 語言規範\n"
     "- 全程使用繁體中文，保持專業學術風格\n"
+    "- 採用標準商業與財務專業術語，禁止直譯或生硬翻譯\n"
+    "- 確保專業名詞準確（如：revenue 營收、profit 利潤、market share 市場佔有率）\n"
     "- 禁止逐字摘抄原文，需重新組織表達\n"
     "- 嚴禁使用省略號（「..」「…」）或未完成句式\n"
+    "- 所有句子必須完整，禁止中途截斷\n"
     "- 數據需保留完整（數值、單位、時間、對比基準）"
 )
 
@@ -597,12 +600,8 @@ class SummaryEngine:
                         # 清理可能的TOON標籤
                         first_page = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_page)
                         first_page = first_page.strip()
-                        # 智能截斷到完整句子（找最後一個句號、問號或感嘆號）
-                        truncated = first_page[:300]
-                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
-                        last_sentence_end = max(sentence_ends)
-                        if last_sentence_end > 50:  # 至少有50字的完整句子
-                            truncated = truncated[:last_sentence_end + 1]
+                        # 使用 _trim_to_limit 確保完整句子截斷
+                        truncated = self._trim_to_limit(first_page, 500)
                         overview_text = "本文檔涵蓋多個主題。" + truncated
                     else:
                         overview_text = "本文檔涵蓋多個主題。"
@@ -640,11 +639,8 @@ class SummaryEngine:
                         first_finding = key_findings[0]
                         first_finding = re.sub(r'^【第\d+頁】', '', first_finding)
                         first_finding = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_finding).strip()
-                        truncated = first_finding[:200]
-                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
-                        last_sentence_end = max(sentence_ends)
-                        if last_sentence_end > 30:
-                            truncated = truncated[:last_sentence_end + 1]
+                        # 使用 _trim_to_limit 確保完整句子截斷
+                        truncated = self._trim_to_limit(first_finding, 400)
                         key_conclusions = "核心發現包括：" + truncated
                     else:
                         key_conclusions = "請參考逐頁分析。"
@@ -682,11 +678,8 @@ class SummaryEngine:
                         first_data = data_points[0]
                         first_data = re.sub(r'^【第\d+頁】', '', first_data)
                         first_data = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_data).strip()
-                        truncated = first_data[:200]
-                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
-                        last_sentence_end = max(sentence_ends)
-                        if last_sentence_end > 30:
-                            truncated = truncated[:last_sentence_end + 1]
+                        # 使用 _trim_to_limit 確保完整句子截斷
+                        truncated = self._trim_to_limit(first_data, 400)
                         core_data = "關鍵數據包括：" + truncated
                     else:
                         core_data = "請參考逐頁分析。"
@@ -724,11 +717,8 @@ class SummaryEngine:
                         first_risk = risks_opportunities[0]
                         first_risk = re.sub(r'^【第\d+頁】', '', first_risk)
                         first_risk = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_risk).strip()
-                        truncated = first_risk[:200]
-                        sentence_ends = [truncated.rfind('。'), truncated.rfind('！'), truncated.rfind('？')]
-                        last_sentence_end = max(sentence_ends)
-                        if last_sentence_end > 30:
-                            truncated = truncated[:last_sentence_end + 1]
+                        # 使用 _trim_to_limit 確保完整句子截斷
+                        truncated = self._trim_to_limit(first_risk, 400)
                         risks_and_actions = "主要風險包括：" + truncated
                     else:
                         risks_and_actions = "請參考逐頁分析。"
@@ -764,26 +754,38 @@ class SummaryEngine:
         truncated = stripped[:limit]
         
         # 定義句子結束標點（優先級從高到低）
-        sentence_endings = ['。', '！', '？', '；', '：', '，', '、']
+        # 優先在完整句子處截斷（。！？），其次才考慮其他標點
+        primary_endings = ['。', '！', '？']
+        secondary_endings = ['；', '：', '，', '、']
         
-        # 從後往前找最近的句子結束標點
+        # 首先嘗試在主要句子結束標點處截斷
         best_pos = -1
-        for ending in sentence_endings:
+        for ending in primary_endings:
             pos = truncated.rfind(ending)
-            if pos > len(truncated) * 0.7:  # 至少保留70%的內容
+            if pos > len(truncated) * 0.5:  # 至少保留50%的內容以獲得完整句子
                 best_pos = pos
                 break
+        
+        # 如果找不到主要標點，嘗試次要標點
+        if best_pos <= 0:
+            for ending in secondary_endings:
+                pos = truncated.rfind(ending)
+                if pos > len(truncated) * 0.7:  # 次要標點要求保留更多內容
+                    best_pos = pos
+                    break
         
         if best_pos > 0:
             # 在標點符號之後截斷（包含標點）
             return truncated[:best_pos + 1].rstrip()
         else:
-            # 如果找不到合適的標點，在最後一個空格處截斷
+            # 如果找不到合適的標點，嘗試在最後一個空格或中文字符處截斷
+            # 對於中文，盡量避免在詞語中間截斷
             last_space = truncated.rfind(' ')
             if last_space > len(truncated) * 0.8:
                 return truncated[:last_space].rstrip() + "。"
-            # 最後的fallback：硬截斷但加句號
-            return truncated.rstrip() + "。"
+            # 最後的fallback：返回空字符串而不是硬截斷不完整的句子
+            # 這樣可以避免產生像「透 過」這樣的不完整片段
+            return ""
 
     @staticmethod
     def _prefix_bullet(page_number: int, bullet: str) -> str:
