@@ -648,7 +648,7 @@ export default function Home() {
 
     return (
       <div className="space-y-8">
-        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-inner">
+        <section className="space-y-6 rounded-3xl glass-card-strong p-6 shadow-xl hover-lift">
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
             {languageLabel ? (
               <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">
@@ -735,7 +735,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="space-y-5 rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-inner">
+        <section className="space-y-5 rounded-3xl glass-card-strong p-6 shadow-xl hover-lift">
           <h3 className="text-lg font-semibold text-slate-800">逐頁重點與關鍵字</h3>
           <div className="space-y-5 max-h-[520px] overflow-y-auto pr-2">
             {analysisResult.page_summaries
@@ -785,27 +785,33 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f6f8ff] via-[#f4f7fb] to-[#edf1ff] text-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 text-slate-900 relative overflow-hidden">
+      {/* Animated Background Pattern */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+      <div className="relative z-10">
       {analysisCompleteMessage ? (
         <div className="fixed right-6 top-6 z-50 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-lg">
           {analysisCompleteMessage}
         </div>
       ) : null}
-      <header className="grid grid-cols-[1fr_auto_1fr] items-center px-8 pt-8">
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center px-8 pt-8 animate-[fade-in-up_0.6s_ease-out]">
         <div aria-hidden />
         <div className="col-start-2 col-end-3 flex items-center justify-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 text-2xl text-white shadow-lg">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 text-3xl text-white shadow-xl hover-glow">
             📄
           </div>
           <div className="text-center">
-            <p className="text-xl font-semibold text-slate-900">AutoNote & Slide</p>
-            <p className="text-sm text-slate-500">智慧文檔處理平台</p>
+            <p className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">AutoNote & Slide</p>
+            <p className="text-sm text-slate-600 font-medium">智慧文檔處理平台</p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
-          className="group col-start-3 col-end-4 justify-self-end rounded-2xl border border-white/60 bg-white/80 p-3 shadow-lg transition hover:shadow-xl"
+          className="group col-start-3 col-end-4 justify-self-end rounded-2xl glass-card p-3 shadow-lg transition hover:shadow-xl hover-lift"
           aria-label="開啟 API 設定"
         >
           <svg
@@ -837,10 +843,10 @@ export default function Home() {
 
         <div className="mt-10 space-y-10">
           <div className="grid grid-cols-1 gap-10 xl:grid-cols-2 xl:items-stretch">
-          <section className="relative flex w-full flex-col rounded-[40px] border border-white/60 bg-white/95 p-10 shadow-2xl lg:min-h-[620px] xl:min-h-[700px]">
+          <section className="relative flex w-full flex-col rounded-[40px] glass-card-strong p-10 shadow-2xl hover-lift lg:min-h-[620px] xl:min-h-[700px] animate-[scale-in_0.5s_ease-out]">
             <div className="mt-10 flex flex-1 flex-col items-center gap-6 text-center">
               <div
-                className={`flex min-h-[420px] w-full flex-col items-center justify-center gap-6 rounded-3xl border-2 border-dashed bg-gradient-to-br from-slate-50 to-slate-100/70 p-10 transition ${dragging ? "border-indigo-400 bg-indigo-50/70" : "border-slate-200"}`}
+                className={`flex min-h-[420px] w-full flex-col items-center justify-center gap-6 rounded-3xl border-2 border-dashed p-10 transition-all duration-300 ${dragging ? "border-indigo-400 bg-gradient-to-br from-indigo-50 to-purple-50 scale-[1.02] shadow-lg" : "border-slate-300 bg-gradient-to-br from-slate-50/50 to-white/50"}`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -862,19 +868,19 @@ export default function Home() {
                     }
                   }}
                 />
-                <div className="flex h-28 w-28 items-center justify-center rounded-[36px] bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 text-4xl text-white shadow-xl">
+                <div className="flex h-28 w-28 items-center justify-center rounded-[36px] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-5xl text-white shadow-2xl hover:scale-110 transition-transform duration-300 animate-[pulse-glow_2s_ease-in-out_infinite]">
                   ⬆️
                 </div>
                 <div className="flex max-w-xl flex-col gap-3">
-                  <h1 className="text-3xl font-semibold text-slate-900">上傳您的檔案</h1>
-                  <p className="text-base leading-7 text-slate-600">
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">上傳您的檔案</h1>
+                  <p className="text-base leading-7 text-slate-700">
                     將檔案拖放到此處，或點擊任何地方瀏覽檔案。上傳後系統會整理每頁重點並彙整全局摘要。
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="rounded-full bg-slate-900 px-6 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-slate-700"
+                  className="rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-3 text-sm font-semibold text-white shadow-xl transition hover:from-indigo-700 hover:to-purple-700 hover:shadow-2xl hover:scale-105"
                 >
                   選擇檔案
                 </button>
@@ -928,11 +934,11 @@ export default function Home() {
                     <span>{analysisProgress.message || "分析中"}</span>
                     <span>{analysisProgress.value}%</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-slate-200">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all"
-                      style={{ width: `${Math.min(Math.max(analysisProgress.value, 0), 100)}%` }}
-                    />
+                   <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                     <div
+                       className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-500 ease-out"
+                       style={{ width: `${Math.min(Math.max(analysisProgress.value, 0), 100)}%`, backgroundSize: '200% 100%', animation: 'gradient-shift 2s ease infinite' }}
+                     />
                   </div>
                 </div>
               ) : null}
@@ -940,20 +946,20 @@ export default function Home() {
               <div className="w-full space-y-4">
                 <button
                   type="button"
-                  onClick={handleAnalyze}
-                  disabled={isAnalyzing}
-                  className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
+                   onClick={handleAnalyze}
+                   disabled={isAnalyzing}
+                   className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-8 py-4 text-lg font-bold text-white shadow-2xl transition-all hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 hover:shadow-3xl hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+                 >
                   {isAnalyzing ? "分析中…" : "開始分析"}
                 </button>
               </div>
             </div>
           </section>
 
-          <section className="relative flex w-full flex-col rounded-[40px] border border-white/60 bg-white/95 p-10 shadow-2xl lg:min-h-[620px] xl:min-h-[700px]">
+          <section className="relative flex w-full flex-col rounded-[40px] glass-card-strong p-10 shadow-2xl hover-lift lg:min-h-[620px] xl:min-h-[700px] animate-[scale-in_0.5s_ease-out_0.1s] opacity-0" style={{ animationFillMode: 'forwards' }}>
             <div className="flex flex-col items-center gap-4 text-center">
               <div>
-                <h2 className="text-3xl font-semibold text-slate-900">檔案預覽</h2>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">檔案預覽</h2>
                 <p className="mt-3 text-base text-slate-600">
                   左側上傳檔案後，可在此預覽原始檔案內容。
                 </p>
@@ -965,10 +971,10 @@ export default function Home() {
           </section>
           </div>
 
-          <section className="relative w-full rounded-[40px] border border-white/60 bg-white/95 p-10 shadow-2xl">
+          <section className="relative w-full rounded-[40px] glass-card-strong p-10 shadow-2xl hover-lift animate-[scale-in_0.5s_ease-out_0.2s] opacity-0" style={{ animationFillMode: 'forwards' }}>
             <div className="flex flex-col gap-4 text-center lg:flex-row lg:items-center lg:justify-between">
               <div className="lg:text-left">
-                <h2 className="text-3xl font-semibold text-slate-900">分析結果整理</h2>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">分析結果整理</h2>
                 <p className="mt-3 text-base text-slate-600">
                   檔案分析完成後，全局摘要與逐頁重點會集中顯示在此區域。
                 </p>
@@ -978,9 +984,9 @@ export default function Home() {
                   type="button"
                   onClick={() => void handleDownloadReport()}
                   disabled={!analysisResult || isDownloading || isAnalyzing}
-                  className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition ${ !analysisResult || isDownloading || isAnalyzing
+                  className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition-all ${ !analysisResult || isDownloading || isAnalyzing
                       ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                      : "border border-emerald-200 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600"
+                      : "border-none bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xl hover:from-emerald-600 hover:to-teal-600 hover:shadow-2xl hover:scale-105"
                   }`}
                 >
                   {isDownloading ? "PDF 準備中…" : "下載 PDF 報告"}
@@ -1013,8 +1019,8 @@ export default function Home() {
       </footer>
 
       {settingsOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white/95 p-6 shadow-2xl">
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4 animate-[fade-in-up_0.3s_ease-out]">
+           <div className="w-full max-w-md rounded-3xl glass-card-strong p-6 shadow-2xl animate-[scale-in_0.3s_ease-out]">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">模型設定</h3>
@@ -1146,15 +1152,16 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => setSettingsOpen(false)}
-                className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-600"
-              >
+                 onClick={() => setSettingsOpen(false)}
+                 className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:from-indigo-700 hover:to-purple-700 hover:shadow-xl transition-all"
+               >
                 確認
               </button>
             </div>
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
