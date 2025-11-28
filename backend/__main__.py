@@ -21,7 +21,9 @@ def _load_env():
 def main():
     _load_env()
     host = os.getenv("APP_HOST", "0.0.0.0")
-    port = int(os.getenv("APP_PORT", "8000"))
+    # Railway provides PORT env var, fallback to APP_PORT then 8000
+    port_str = os.getenv("PORT") or os.getenv("APP_PORT") or "8000"
+    port = int(port_str)
     uvicorn.run("backend.app.main:app", host=host, port=port, reload=True)
 
 if __name__ == "__main__":
