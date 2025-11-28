@@ -1,13 +1,10 @@
 # AutoNote&Slide - 技術文檔
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/autonote)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Railway-blue?style=flat&logo=railway)](https://autonote.up.railway.app)
+[![Deploy on Railway](https://railway.app/button.svg)](https://autonote.up.railway.app)
 
 **📋 專案概述**
 
 **AutoNote&Slide** 是一個智能文件分析與摘要生成系統，能自動將 PDF 文件轉換為結構化的摘要報告，並生成視覺化的文字雲。系統支援多語言文檔分析。
-
-🔗 **線上體驗**: [https://autonote.up.railway.app](https://autonote.up.railway.app)
 
 **核心功能**：
 - 📄 PDF 文件上傳與解析
