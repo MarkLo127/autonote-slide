@@ -1,8 +1,13 @@
 # AutoNote&Slide - 技術文檔
 
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/autonote)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Railway-blue?style=flat&logo=railway)](https://autonote.up.railway.app)
+
 **📋 專案概述**
 
 **AutoNote&Slide** 是一個智能文件分析與摘要生成系統，能自動將 PDF 文件轉換為結構化的摘要報告，並生成視覺化的文字雲。系統支援多語言文檔分析。
+
+🔗 **線上體驗**: [https://autonote.up.railway.app](https://autonote.up.railway.app)
 
 **核心功能**：
 - 📄 PDF 文件上傳與解析
@@ -349,6 +354,23 @@ wordcloud = generate_wordcloud(keywords, language)
 
 
 ## 🚀 部署架構
+
+### Railway 一鍵部署 ⭐
+
+**Live Demo**: [https://autonote.up.railway.app](https://autonote.up.railway.app)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/autonote)
+
+**部署步驟**：
+1. 點擊上方 Railway 按鈕
+2. 連接您的 GitHub 倉庫
+3. 設定環境變數（見下方配置）
+4. 等待自動部署完成
+
+📖 **詳細部署教學**: 請參考 `RAILWAY_DEPLOYMENT.md`
+
+### 本地開發
+
 ```bash
 git clone https://github.com/MarkLo127/autonote-slide.git
 cd autonote-slide
@@ -366,7 +388,7 @@ docker compose up -d
 docker compose down -v
 ```
 
-### 本地部署
+### 手動本地部署
 **前端**
 ```bash
 pnpm -C frontend i
