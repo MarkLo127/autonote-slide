@@ -10,16 +10,16 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        graphviz \
+    build-essential \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
-COPY requirements.txt ./requirements.txt
+# Copy and install Python dependencies from backend directory
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . ./backend
+# Copy application code from backend directory
+COPY backend ./backend
 
 # Create storage directories
 RUN mkdir -p storage/uploads storage/wordclouds

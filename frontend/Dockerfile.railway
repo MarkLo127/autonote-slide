@@ -4,7 +4,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
 
-COPY package.json pnpm-lock.yaml ./
+# Copy package files from frontend directory
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN corepack enable pnpm \
     && pnpm install --frozen-lockfile
 
@@ -14,7 +15,8 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy all frontend files
+COPY frontend ./
 
 # Build Next.js app
 RUN corepack enable pnpm \
