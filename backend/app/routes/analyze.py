@@ -41,7 +41,6 @@ async def analyze_file(
     llm_base_url: Optional[str] = Form(None),
     analysis_level: Optional[AnalysisLevel] = Form(None),
     enable_vision: bool = Form(False),  # 是否啟用圖片分析
-    pdf_parser: Optional[str] = Form(None),  # PDF 解析引擎: "pymupdf4llm" 或 "marker"
 ):
     if not file.filename:
         raise HTTPException(400, "檔案名稱缺失，請重新上傳。")
@@ -107,14 +106,6 @@ async def analyze_file(
                         "message": "正在將 PDF 轉換為 Markdown 格式..."
                     })
                 
-                # 如果用戶指定了 PDF 解析引擎，臨時覆寫配置
-                original_parser = None
-                if pdf_parser and ext.lower() == ".pdf":
-                    import backend.app.core.config as config_module
-                    original_parser = config_module.PDF_PARSER_ENGINE
-                    config_module.PDF_PARSER_ENGINE = pdf_parser.lower()
-                    logger.info(f"用戶指定 PDF 解析引擎: {pdf_parser}")
-                
                 try:
                     # 如果啟用 Vision，創建 vision_analyzer
                     vision_analyzer = None
@@ -139,11 +130,6 @@ async def analyze_file(
                         }
                     
                     pages = parse_pages(saved_path, ext, vision_analyzer, vision_settings)
-                    
-                    # 恢復原始配置
-                    if original_parser is not None:
-                        import backend.app.core.config as config_module
-                        config_module.PDF_PARSER_ENGINE = original_parser
                         
                 except ValueError as exc:
                     raise HTTPException(400, str(exc)) from exc

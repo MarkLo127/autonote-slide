@@ -50,10 +50,3 @@ DEFAULT_ZH_FONT = _discover_font(FONTS_DIR)
 DEFAULT_EN_FONT = None  # 英文不用指定字型
 
 # ✅ 不再顯示「請設 FONT_ZH_PATH」的 warning
-
-# === PDF 解析引擎配置 ===
-# 選項: "pymupdf4llm" (預設，速度快) 或 "marker" (高精度，適合複雜文檔)
-PDF_PARSER_ENGINE = os.getenv("PDF_PARSER_ENGINE", "pymupdf4llm")
-
-# Marker 特定配置
-MARKER_USE_GPU = os.getenv("MARKER_USE_GPU", "false").lower() == "true"

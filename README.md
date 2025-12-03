@@ -56,7 +56,7 @@
 | **HTTP 客戶端** | Fetch API | HTTPX (via OpenAI SDK) |
 | **AI/ML** | - | OpenAI API |
 | **NLP** | - | jieba, nltk, langdetect |
-| **文件處理** | pdf-lib | PyMuPDF (fitz), pymupdf4llm, **Marker** |
+| **文件處理** | pdf-lib | PyMuPDF (fitz), pymupdf4llm |
 | **部署** | Docker + Next.js standalone | Docker + Uvicorn |
 
 ## 🔧 核心技術詳解
@@ -406,8 +406,6 @@ python -m backend
 - `ALLOWED_ORIGINS`: CORS 允許來源
 - `MAX_BODY_MB`: 上傳大小限制（預設 50MB）
 - `OPENAI_API_KEY`: OpenAI API 金鑰
-- `PDF_PARSER_ENGINE`: PDF 解析引擎，選項：`pymupdf4llm`（預設，速度快）或 `marker`（高精度）
-- `MARKER_USE_GPU`: 是否使用 GPU 加速 Marker（預設 `false`）
 
 **前端**
 - `NEXT_PUBLIC_BACKEND_URL`: 後端 API 端點
@@ -426,7 +424,6 @@ llm_api_key: string          # OpenAI API Key
 llm_base_url: string?        # 自定義 API 端點（可選）
 analysis_level: enum         # light | medium | deep
 enable_vision: boolean       # 是否啟用 Vision 分析
-pdf_parser: string?          # PDF 解析引擎：pymupdf4llm（預設）或 marker（高精度）
 ```
 
 **Response (application/x-ndjson)**
