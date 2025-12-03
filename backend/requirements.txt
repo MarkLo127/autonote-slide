@@ -10,6 +10,7 @@ scikit-learn
 wordcloud
 PyMuPDF
 pymupdf4llm>=0.0.17
+marker-pdf>=0.2.0
 Pillow
 openai
 graphviz

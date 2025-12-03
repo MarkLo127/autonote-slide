@@ -39,21 +39,60 @@ def _parse_pdf(path: str, vision_analyzer=None, vision_settings=None, use_markdo
     markdown_pages = {}
     if use_markdown:
         try:
-            from backend.app.services.parsing.pdf_to_markdown import convert_pdf_to_markdown
-            logger.info(f"正在將 PDF 轉換為 Markdown: {path}")
-            md_result = convert_pdf_to_markdown(
-                pdf_path=path,
-                write_images=False,  # 不儲存圖片，因為 Vision 會處理
-                page_chunks=True     # 逐頁轉換
-            )
-            # 建立頁碼到 Markdown 的映射
-            for page_data in md_result:
-                page_num = page_data.get("page_number", 0)
-                markdown_pages[page_num] = page_data.get("markdown", "")
-            logger.info(f"成功轉換 {len(markdown_pages)} 頁 PDF 到 Markdown")
+            # 檢查使用哪個 PDF 解析引擎
+            from backend.app.core.config import PDF_PARSER_ENGINE
+            
+            parser_engine = PDF_PARSER_ENGINE.lower()
+            logger.info(f"使用 PDF 解析引擎: {parser_engine}")
+            
+            # 根據配置選擇解析引擎
+            if parser_engine == "marker":
+                # 嘗試使用 Marker 轉換
+                try:
+                    from backend.app.services.parsing.marker_converter import (
+                        convert_pdf_to_markdown_marker,
+                        is_marker_available
+                    )
+                    
+                    if not is_marker_available():
+                        logger.warning("Marker 未安裝，降級使用 pymupdf4llm")
+                        raise ImportError("Marker not available")
+                    
+                    logger.info(f"正在使用 Marker 將 PDF 轉換為 Markdown: {path}")
+                    md_result = convert_pdf_to_markdown_marker(
+                        pdf_path=path,
+                        extract_images=False,  # 不儲存圖片，Vision 會處理
+                    )
+                    # 建立頁碼到 Markdown 的映射
+                    for page_data in md_result:
+                        page_num = page_data.get("page_number", 0)
+                        markdown_pages[page_num] = page_data.get("markdown", "")
+                    logger.info(f"Marker 成功轉換 {len(markdown_pages)} 頁 PDF")
+                    
+                except Exception as e:
+                    # Marker 失敗時降級到 pymupdf4llm
+                    logger.warning(f"Marker 轉換失敗，降級使用 pymupdf4llm: {e}")
+                    parser_engine = "pymupdf4llm"
+            
+            # 使用 pymupdf4llm（預設或降級）
+            if parser_engine == "pymupdf4llm":
+                from backend.app.services.parsing.pdf_to_markdown import convert_pdf_to_markdown
+                logger.info(f"正在使用 pymupdf4llm 將 PDF 轉換為 Markdown: {path}")
+                md_result = convert_pdf_to_markdown(
+                    pdf_path=path,
+                    write_images=False,  # 不儲存圖片，因為 Vision 會處理
+                    page_chunks=True     # 逐頁轉換
+                )
+                # 建立頁碼到 Markdown 的映射
+                for page_data in md_result:
+                    page_num = page_data.get("page_number", 0)
+                    markdown_pages[page_num] = page_data.get("markdown", "")
+                logger.info(f"pymupdf4llm 成功轉換 {len(markdown_pages)} 頁 PDF")
+                
         except Exception as e:
             logger.warning(f"Markdown 轉換失敗，將使用原始文字提取: {e}")
             markdown_pages = {}
+
     
     doc = fitz.open(path)
     
