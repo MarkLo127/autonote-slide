@@ -69,7 +69,7 @@ class VisionAnalyzer:
                         ]
                     }
                 ],
-                max_tokens=300,
+                max_completion_tokens=300,
                 temperature=0.1  # 極低溫度值，確保嚴格依據圖片內容描述，不過度想像
             )
             

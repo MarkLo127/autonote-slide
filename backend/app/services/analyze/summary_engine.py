@@ -352,16 +352,23 @@ class SummaryEngine:
         logger = logging.getLogger(__name__)
         
         try:
-            response = await self._client.chat.completions.create(
-                model=self._model,
-                messages=[
+            # 構建 API 參數字典
+            api_params = {
+                "model": self._model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                # 移除 response_format 以允許 TOON 格式輸出
-                max_tokens=4000,  # 足夠的token限制以避免內容被截斷
-                temperature=0.3,  # 提高溫度值，給予AI更多思考空間，生成更豐富的洞察
-            )
+                "max_completion_tokens": 4000,  # 足夠的token限制以避免內容被截斷
+            }
+            
+            # GPT-5-mini 和 GPT-5-nano 不支援自定義 temperature，只能使用默認值 1
+            # 其他模型則可以使用自定義 temperature
+            model_lower = self._model.lower()
+            if "gpt-5-mini" not in model_lower and "gpt-5-nano" not in model_lower:
+                api_params["temperature"] = 0.3  # 提高溫度值，給予AI更多思考空間，生成更豐富的洞察
+            
+            response = await self._client.chat.completions.create(**api_params)
             content = response.choices[0].message.content or ""
             
             # 調試日誌：顯示 API 返回內容的前 300 字元
@@ -457,15 +464,22 @@ class SummaryEngine:
         logger = logging.getLogger(__name__)
         
         try:
-            response = await self._client.chat.completions.create(
-                model=self._model,
-                messages=[
+            # 構建 API 參數字典
+            api_params = {
+                "model": self._model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=4000,  # 足夠的token限制以避免內容被截斷
-                temperature=0.3,
-            )
+                "max_completion_tokens": 4000,  # 足夠的token限制以避免內容被截斷
+            }
+            
+            # GPT-5-mini 和 GPT-5-nano 不支援自定義 temperature，只能使用默認值 1
+            model_lower = self._model.lower()
+            if "gpt-5-mini" not in model_lower and "gpt-5-nano" not in model_lower:
+                api_params["temperature"] = 0.3
+            
+            response = await self._client.chat.completions.create(**api_params)
             content = response.choices[0].message.content or ""
             return content.strip()
             

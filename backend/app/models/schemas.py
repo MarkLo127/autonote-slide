@@ -69,21 +69,21 @@ MODEL_CONFIGS = {
     
     # Gemini Models (Google)
     "gemini-2.5-pro": {
-        "max_requests_per_minute": 30,
-        "request_delay": 0.1,
-        "concurrency": 10,
+        "max_requests_per_minute": 2,  # Gemini 2.5 Pro 免費版每分鐘限制
+        "request_delay": 15.0,  # 每30秒一個請求，保守策略
+        "concurrency": 1,  # 單線程，避免並發觸發限制
         "max_retries": 5,
     },
     "gemini-2.5-flash": {
-        "max_requests_per_minute": 100,
-        "request_delay": 0.02,
-        "concurrency": 40,
+        "max_requests_per_minute": 5,  # Gemini 免費版每分鐘限制
+        "request_delay": 6.0,  # 每12秒一個請求，保守策略
+        "concurrency": 1,  # 單線程，避免並發觸發限制
         "max_retries": 5,
     },
     "gemini-2.5-flash-lite": {
-        "max_requests_per_minute": 150,
-        "request_delay": 0.01,
-        "concurrency": 60,
+        "max_requests_per_minute": 5,  # Gemini 免費版每分鐘限制
+        "request_delay": 6.0,  # 每12秒一個請求
+        "concurrency": 1,  # 單線程
         "max_retries": 5,
     },
     
