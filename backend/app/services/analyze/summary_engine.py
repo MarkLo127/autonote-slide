@@ -52,18 +52,17 @@ class RateLimiter:
 
 
 SYSTEM_PROMPT = (
-    "您是專業的商業文件分析專家，專精於提煉核心洞察與可執行建議。\n"
+    "您是專業的文件分析專家，專精於提煉核心內容與關鍵資訊。\n"
     "\n"
     "## 核心原則\n"
-    "1. **精準性**：嚴格基於原文數據與明確陳述，禁止臆測或補充未提及資訊\n"
-    "2. **完整性**：每項要點需包含主體、行動與實證依據，語句須自成一體\n"
-    "3. **專業性**：採用繁體中文商業語彙，避免口語化或模糊表述\n"
+    "1. **精準性**：嚴格基於原文內容與明確陳述，禁止臆測或補充未提及資訊\n"
+    "2. **完整性**：每項要點需包含主體與實證依據，語句須自成一體\n"
+    "3. **專業性**：採用繁體中文，根據文件類型使用適當的專業語彙\n"
     "4. **客觀性**：不添加外部知識、個人觀點或假設性推論\n"
     "\n"
     "## 語言規範\n"
-    "- 全程使用繁體中文，保持專業學術風格\n"
-    "- 採用標準商業與財務專業術語，禁止直譯或生硬翻譯\n"
-    "- 確保專業名詞準確（如：revenue 營收、profit 利潤、market share 市場佔有率）\n"
+    "- 全程使用繁體中文，保持清晰易懂的風格\n"
+    "- 根據文件類型採用相應的專業術語\n"
     "- 禁止逐字摘抄原文，需重新組織表達\n"
     "- 嚴禁使用省略號（「..」「…」）或未完成句式\n"
     "- 所有句子必須完整，每個段落必須有完整的結尾，絕對禁止中途截斷\n"
@@ -89,21 +88,21 @@ PAGE_INSTRUCTIONS = """
 
 ### 2. 關鍵發現 (key_findings: 建議30-300字)
 - 本頁最值得關注的發現或結論
-- 揭示的趨勢或模式
+- 揭示的趨勢、觀點或重要論述
 - 直指重點，提供深入洞察
 - **若無重大發現可簡短說明**
 
 ### 3. 核心數據 (data_points: 建議30-300字)
-- 關鍵財務數據或業務指標
+- 關鍵數據、統計資料或量化指標（如有）
 - 保留完整數值、單位、時間與對比
 - 精確呈現量化資訊並提供脈絡
 - **若本頁無數據可簡述「本頁未涉及具體數據」**
 
-### 4. 風險與機會 (risks_opportunities: 建議30-300字)
-- 潛在風險因素或挑戰
-- 機會或正面因素
-- 明確指出需警惕的要點與可能的應對方向
-- **若本頁無風險內容可簡述「本頁無明顯風險提示」**
+### 4. 注意事項與建議 (risks_opportunities: 建議30-300字)
+- 需注意的事項、潛在問題或挑戰
+- 可參考的建議或後續行動
+- 明確指出需關注的要點
+- **若本頁無相關內容可簡述「本頁無特別需注意事項」**
 
 ### 輸出格式（TOON）
 ```
@@ -115,7 +114,7 @@ page_detailed_analysis:
   data_points: |
     關鍵數據包括...
   risks_opportunities: |
-    主要風險為...
+    需注意的事項為...
 ```
 
 ### 品質標準
@@ -140,7 +139,7 @@ GLOBAL_PROMPT_TEMPLATE = """
 【核心數據】
 {data_points}
 
-【風險機會】
+【注意事項】
 {risks_opportunities}
 
 輸出要求（**必須完整生成以下TOON結構**）：
@@ -148,7 +147,7 @@ GLOBAL_PROMPT_TEMPLATE = """
 1. **overview**: 基於【頁面總覽】，寫一段300-600字的段落
 2. **key_conclusions**: 基於【關鍵發現】，寫一段200-400字的段落  
 3. **core_data**: 基於【核心數據】，寫一段200-400字的段落
-4. **risks_and_actions**: 基於【風險機會】，寫一段200-400字的段落
+4. **risks_and_actions**: 基於【注意事項】，寫一段200-400字的段落
 
 **TOON格式輸出（照抄此結構，填入內容）**：
 ```
@@ -161,7 +160,7 @@ global_summary:
     core_data: |
       核心數據顯示...（這裡寫200-400字段落）  
     risks_and_actions: |
-      主要風險包括...（這裡寫200-400字段落）
+      需注意的事項包括...（這裡寫200-400字段落）
 ```
 
 **重要**：
@@ -677,7 +676,7 @@ class SummaryEngine:
 
 【輸出要求】：
 1. 撰寫一段200-400字的連貫段落
-2. 整合最重要的財務或業務數據  
+2. 整合最重要的數據或量化資訊  
 3. 保留關鍵數值、時間、對比資訊
 4. 突出數據之間的關聯或趨勢
 5. **直接輸出段落文本，不要添加標題或格式標記**
@@ -706,22 +705,22 @@ class SummaryEngine:
         else:
             core_data = "本文件未涉及具體量化數據。"
         
-        # 4. 生成風險與建議（基於所有頁面的risks_opportunities）
+        # 4. 生成注意事項與建議（基於所有頁面的risks_opportunities）
         risks_and_actions = ""
         if risks_opportunities:
-            risks_prompt = f"""請基於以下各頁面的風險與機會，彙整出風險與建議總結。
+            risks_prompt = f"""請基於以下各頁面的注意事項與建議，彙整出總結。
 
-【各頁面風險與機會】：
+【各頁面注意事項】：
 {chr(10).join(risks_opportunities[:60])}
 
 【輸出要求】：
 1. 撰寫一段200-400字的連貫段落
-2. 識別最重要的風險因素與機會
-3. 提供可行的應對建議或行動方向
-4. 平衡風險警示與機會把握
+2. 整理需注意的重要事項
+3. 提供可行的建議或後續行動方向
+4. 平衡問題提示與解決方案
 5. **直接輸出段落文本，不要添加標題或格式標記**
 
-現在請撰寫風險與建議總結："""
+現在請撰寫注意事項與建議總結："""
             
             try:
                 risks_and_actions = await self._chat_simple(SYSTEM_PROMPT, risks_prompt)
@@ -734,16 +733,16 @@ class SummaryEngine:
                         first_risk = re.sub(r'(page_summary|key_findings|data_points|risks_opportunities|page_detailed_analysis)\s*:\s*\|', '', first_risk).strip()
                         # 使用 _trim_to_limit 確保完整句子截斷
                         truncated = self._trim_to_limit(first_risk, 400)
-                        risks_and_actions = "主要風險包括：" + truncated
+                        risks_and_actions = "需注意的事項包括：" + truncated
                     else:
                         risks_and_actions = "請參考逐頁分析。"
                 risks_and_actions = self._trim_to_limit(risks_and_actions, 400)
-                logger.info(f"生成風險與建議: {len(risks_and_actions)} 字")
+                logger.info(f"生成注意事項與建議: {len(risks_and_actions)} 字")
             except Exception as e:
-                logger.error(f"生成風險與建議失敗: {e}")
-                risks_and_actions = "風險評估請參考各頁面的風險與機會部分。"
+                logger.error(f"生成注意事項與建議失敗: {e}")
+                risks_and_actions = "注意事項請參考各頁面的相關部分。"
         else:
-            risks_and_actions = "本文件未明確提及風險或機會。"
+            risks_and_actions = "本文件未明確提及特別需注意的事項。"
         
         # 組裝最終結果
         expansions = GlobalSummaryExpansions(

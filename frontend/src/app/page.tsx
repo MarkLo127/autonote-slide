@@ -1,8 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import {
+  Typography,
+  Card,
+  Row,
+  Col,
+  Tabs,
+  Input,
+  Button,
+  message,
+  Space,
+  Tag,
+} from "antd";
+import {
+  FileTextOutlined,
+  RobotOutlined,
+  TagsOutlined,
+  BarChartOutlined,
+  CloudOutlined,
+  FilePdfOutlined,
+  ArrowRightOutlined,
+} from "@ant-design/icons";
 import { saveApiSettings, loadApiSettings } from "@/lib/storage";
+
+const { Title, Paragraph, Text } = Typography;
+
+const features = [
+  {
+    icon: <FileTextOutlined style={{ fontSize: 28, color: "#6366f1" }} />,
+    title: "PDF 文件解析",
+    description: "支援多種格式 PDF 文件，自動提取文字內容與結構資訊",
+  },
+  {
+    icon: <RobotOutlined style={{ fontSize: 28, color: "#8b5cf6" }} />,
+    title: "AI 智能摘要",
+    description: "採用先進 LLM 技術，自動生成高質量逐頁摘要與全局總結",
+  },
+  {
+    icon: <TagsOutlined style={{ fontSize: 28, color: "#ec4899" }} />,
+    title: "重點整理",
+    description: "提取關鍵結論、核心數據、風險與行動建議",
+  },
+  {
+    icon: <BarChartOutlined style={{ fontSize: 28, color: "#10b981" }} />,
+    title: "關鍵字提取",
+    description: "自動識別並提取文檔中的重要關鍵詞",
+  },
+  {
+    icon: <CloudOutlined style={{ fontSize: 28, color: "#f59e0b" }} />,
+    title: "文字雲視覺化",
+    description: "生成美觀的文字雲，直觀呈現文檔重點詞彙",
+  },
+  {
+    icon: <FilePdfOutlined style={{ fontSize: 28, color: "#ef4444" }} />,
+    title: "PDF 報告匯出",
+    description: "一鍵匯出專業格式的分析報告，方便後續使用與分享",
+  },
+];
+
+const tabItems = [
+  { key: "openai", label: "OpenAI" },
+  { key: "gemini", label: "Gemini" },
+  { key: "anthropic", label: "Claude" },
+  { key: "grok", label: "Grok" },
+  { key: "deepseek", label: "DeepSeek" },
+  { key: "qwen", label: "Qwen" },
+  { key: "custom", label: "自訂" },
+];
+
+const providerInfo: Record<string, { placeholder: string; helpText: string; helpUrl: string }> = {
+  openai: {
+    placeholder: "sk-...",
+    helpText: "在 OpenAI Platform 取得您的 API Key",
+    helpUrl: "https://platform.openai.com/api-keys",
+  },
+  gemini: {
+    placeholder: "AIza...",
+    helpText: "在 Google AI Studio 取得您的 API Key",
+    helpUrl: "https://makersuite.google.com/app/apikey",
+  },
+  anthropic: {
+    placeholder: "sk-ant-...",
+    helpText: "在 Anthropic Console 取得您的 API Key",
+    helpUrl: "https://console.anthropic.com/",
+  },
+  grok: {
+    placeholder: "xai-...",
+    helpText: "在 xAI Console 取得您的 API Key",
+    helpUrl: "https://console.x.ai/",
+  },
+  deepseek: {
+    placeholder: "sk-...",
+    helpText: "在 DeepSeek Platform 取得您的 API Key",
+    helpUrl: "https://platform.deepseek.com/api_keys",
+  },
+  qwen: {
+    placeholder: "sk-...",
+    helpText: "在阿里雲百煉控制台取得您的 API Key",
+    helpUrl: "https://dashscope.console.aliyun.com/apiKey",
+  },
+};
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState("openai");
@@ -14,10 +113,17 @@ export default function HomePage() {
   const [qwenKey, setQwenKey] = useState("");
   const [customKey, setCustomKey] = useState("");
   const [customUrl, setCustomUrl] = useState("");
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [messageApi, contextHolder] = message.useMessage();
 
-  // 載入已儲存的設定
-  useState(() => {
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
     const settings = loadApiSettings();
     setOpenaiKey(settings.openai_api_key);
     setGeminiKey(settings.gemini_api_key);
@@ -27,7 +133,7 @@ export default function HomePage() {
     setQwenKey(settings.qwen_api_key);
     setCustomKey(settings.custom_api_key);
     setCustomUrl(settings.custom_base_url);
-  });
+  }, []);
 
   const handleSave = () => {
     saveApiSettings({
@@ -40,290 +146,203 @@ export default function HomePage() {
       custom_api_key: customKey,
       custom_base_url: customUrl,
     });
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    messageApi.success("設定已儲存");
+  };
+
+  const getKeyValue = (provider: string) => {
+    switch (provider) {
+      case "openai": return openaiKey;
+      case "gemini": return geminiKey;
+      case "anthropic": return anthropicKey;
+      case "grok": return grokKey;
+      case "deepseek": return deepseekKey;
+      case "qwen": return qwenKey;
+      default: return "";
+    }
+  };
+
+  const setKeyValue = (provider: string, value: string) => {
+    switch (provider) {
+      case "openai": setOpenaiKey(value); break;
+      case "gemini": setGeminiKey(value); break;
+      case "anthropic": setAnthropicKey(value); break;
+      case "grok": setGrokKey(value); break;
+      case "deepseek": setDeepseekKey(value); break;
+      case "qwen": setQwenKey(value); break;
+    }
+  };
+
+  const renderApiKeyInput = () => {
+    if (activeTab === "custom") {
+      return (
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          <div>
+            <Text strong>API Base URL</Text>
+            <Input
+              value={customUrl}
+              onChange={(e) => setCustomUrl(e.target.value)}
+              placeholder="https://api.example.com/v1"
+              style={{ marginTop: 8 }}
+            />
+          </div>
+          <div>
+            <Text strong>API Key</Text>
+            <Input.Password
+              value={customKey}
+              onChange={(e) => setCustomKey(e.target.value)}
+              placeholder="您的 API Key"
+              style={{ marginTop: 8 }}
+            />
+          </div>
+          <Text type="secondary">適用於自訂的 OpenAI 相容端點</Text>
+        </Space>
+      );
+    }
+
+    const info = providerInfo[activeTab];
+    if (!info) return null;
+
+    return (
+      <div>
+        <Text strong>{tabItems.find(t => t.key === activeTab)?.label} API Key</Text>
+        <Input.Password
+          value={getKeyValue(activeTab)}
+          onChange={(e) => setKeyValue(activeTab, e.target.value)}
+          placeholder={info.placeholder}
+          style={{ marginTop: 8 }}
+        />
+        <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0, fontSize: isMobile ? 12 : 14 }}>
+          在{" "}
+          <a href={info.helpUrl} target="_blank" rel="noopener noreferrer">
+            {info.helpText.split("在 ")[1]?.split(" 取得")[0] || info.helpText}
+          </a>{" "}
+          取得您的 API Key
+        </Paragraph>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-pink-50/20">
+    <div className="hero-gradient" style={{ minHeight: "100vh" }}>
+      {contextHolder}
+      
       {/* Hero Section */}
-      <section className="container mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 mb-6">
-            <span className="text-sm font-medium text-indigo-600">
-              ✨ AI 驅動的智慧文檔處理平台
-            </span>
-          </div>
-          
-          <h1 className="text-5xl sm:text-6xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              AutoNote & Slide
-            </span>
-          </h1>
-          
-          <p className="text-xl text-slate-600 mb-8">
-            智能文件分析與摘要生成系統
-          </p>
-          
-          <p className="text-base text-slate-500 mb-12 max-w-2xl mx-auto">
-            自動將 PDF 文件轉換為結構化的摘要報告，支援多語言文檔分析。
-            一鍵生成逐頁重點、關鍵字提取、文字雲視覺化。
-          </p>
-        </div>
+      <section style={{ 
+        padding: isMobile ? "32px 16px 24px" : "64px 24px 48px", 
+        maxWidth: 1200, 
+        margin: "0 auto", 
+        textAlign: "center" 
+      }}>
+        <Tag color="purple" style={{ marginBottom: isMobile ? 16 : 24, padding: "4px 12px", fontSize: isMobile ? 12 : 14 }}>
+          ✨ AI 驅動的智慧文檔處理平台
+        </Tag>
+        
+        <Title level={1} style={{ marginBottom: isMobile ? 16 : 24 }}>
+          <span className="gradient-text" style={{ fontSize: isMobile ? "1.75rem" : "clamp(2.5rem, 5vw, 3.5rem)" }}>
+            AutoNote &amp; Slide
+          </span>
+        </Title>
+        
+        <Title level={isMobile ? 5 : 3} style={{ fontWeight: 400, color: "#64748b", marginBottom: isMobile ? 12 : 16 }}>
+          智能文件分析與摘要生成系統
+        </Title>
+        
+        <Paragraph style={{ fontSize: isMobile ? 14 : 16, color: "#64748b", maxWidth: 600, margin: isMobile ? "0 auto 24px" : "0 auto 48px" }}>
+          自動將 PDF 文件轉換為結構化的摘要報告，支援多語言文檔分析。
+          {!isMobile && "一鍵生成逐頁重點、關鍵字提取、文字雲視覺化。"}
+        </Paragraph>
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-8 text-slate-900">
-            核心功能
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { icon: "📄", title: "PDF 文件解析", description: "支援多種格式 PDF 文件，自動提取文字內容與結構資訊" },
-              { icon: "🤖", title: "AI 智能摘要", description: "採用先進 LLM 技術，自動生成高質量逐頁摘要與全局總結" },
-              { icon: "🏷️", title: "重點整理", description: "提取關鍵結論、核心數據、風險與行動建議" },
-              { icon: "📊", title: "關鍵字提取", description: "自動識別並提取文檔中的重要關鍵詞" },
-              { icon: "☁️", title: "文字雲視覺化", description: "生成美觀的文字雲，直觀呈現文檔重點詞彙" },
-              { icon: "📑", title: "PDF 報告匯出", description: "一鍵匯出專業格式的分析報告，方便後續使用與分享" },
-            ].map((feature, index) => (
-              <div
-                key={index}
-                className="group rounded-2xl bg-white p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-slate-100"
+      <section style={{ padding: isMobile ? "0 16px 32px" : "0 24px 48px", maxWidth: 1200, margin: "0 auto" }}>
+        <Title level={isMobile ? 4 : 2} style={{ textAlign: "center", marginBottom: isMobile ? 20 : 32 }}>
+          核心功能
+        </Title>
+        <Row gutter={[isMobile ? 12 : 24, isMobile ? 12 : 24]}>
+          {features.map((feature, index) => (
+            <Col xs={12} sm={12} lg={8} key={index}>
+              <Card
+                hoverable
+                className="hover-lift"
+                style={{
+                  height: "100%",
+                  borderRadius: isMobile ? 12 : 16,
+                  border: "1px solid #e2e8f0",
+                }}
+                styles={{ body: { padding: isMobile ? 16 : 24 } }}
               >
-                <div className="text-4xl mb-4">{feature.icon}</div>
-                <h3 className="text-lg font-semibold mb-2 text-slate-900">
+                <div style={{ marginBottom: isMobile ? 8 : 16 }}>{feature.icon}</div>
+                <Title level={5} style={{ marginBottom: 4, fontSize: isMobile ? 14 : 16 }}>
                   {feature.title}
-                </h3>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+                </Title>
+                {!isMobile && <Text type="secondary" style={{ fontSize: 14 }}>{feature.description}</Text>}
+              </Card>
+            </Col>
+          ))}
+        </Row>
       </section>
 
       {/* API Settings Section */}
-      <section className="container mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-        <div className="max-w-4xl mx-auto">
-          <div className="rounded-3xl glass-card-strong p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold mb-2 text-slate-900">
-              API 設定
-            </h2>
-            <p className="text-slate-600 mb-6">
-              請設定您的 LLM API Key，以便開始分析文件
-            </p>
+      <section style={{ padding: isMobile ? "0 16px 32px" : "0 24px 64px", maxWidth: 900, margin: "0 auto" }}>
+        <Card
+          className="glass-card-strong"
+          style={{ borderRadius: isMobile ? 16 : 24, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.12)" }}
+          styles={{ body: { padding: isMobile ? 16 : 32 } }}
+        >
+          <Title level={isMobile ? 5 : 3} style={{ marginBottom: 8 }}>
+            API 設定
+          </Title>
+          <Paragraph type="secondary" style={{ marginBottom: isMobile ? 16 : 24, fontSize: isMobile ? 13 : 14 }}>
+            請設定您的 LLM API Key，以便開始分析文件
+          </Paragraph>
 
-            {/* Tabs */}
-            <div className="flex overflow-x-auto border-b border-slate-200 mb-6">
-              {[
-                { id: "openai", label: "OpenAI" },
-                { id: "gemini", label: "Gemini" },
-                { id: "anthropic", label: "Claude" },
-                { id: "grok", label: "Grok" },
-                { id: "deepseek", label: "DeepSeek" },
-                { id: "qwen", label: "Qwen" },
-                { id: "custom", label: "自訂" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? "border-indigo-600 text-indigo-600"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={tabItems}
+            size={isMobile ? "small" : "middle"}
+            style={{ marginBottom: isMobile ? 16 : 24 }}
+            tabBarGutter={isMobile ? 0 : undefined}
+          />
 
-            {/* Tab Content */}
-            <div className="space-y-4">
-              {activeTab === "openai" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    OpenAI API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={openaiKey}
-                    onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    在 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">OpenAI Platform</a> 取得您的 API Key
-                  </p>
-                </div>
-              )}
+          {renderApiKeyInput()}
 
-              {activeTab === "gemini" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Google Gemini API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
-                    placeholder="AIza..."
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    在 <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Google AI Studio</a> 取得您的 API Key
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "anthropic" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Anthropic API Key (Claude)
-                  </label>
-                  <input
-                    type="password"
-                    value={anthropicKey}
-                    onChange={(e) => setAnthropicKey(e.target.value)}
-                    placeholder="sk-ant-..."
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    在 <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Anthropic Console</a> 取得您的 API Key
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "grok" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Grok API Key (xAI)
-                  </label>
-                  <input
-                    type="password"
-                    value={grokKey}
-                    onChange={(e) => setGrokKey(e.target.value)}
-                    placeholder="xai-..."
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    在 <a href="https://console.x.ai/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">xAI Console</a> 取得您的 API Key
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "deepseek" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    DeepSeek API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={deepseekKey}
-                    onChange={(e) => setDeepseekKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    在 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">DeepSeek Platform</a> 取得您的 API Key
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "qwen" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Qwen API Key (通義千問)
-                  </label>
-                  <input
-                    type="password"
-                    value={qwenKey}
-                    onChange={(e) => setQwenKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                  <p className="text-sm text-slate-500 mt-2">
-                    在 <a href="https://dashscope.console.aliyun.com/apiKey" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">阿里雲百煉控制台</a> 取得您的 API Key
-                  </p>
-                </div>
-              )}
-
-              {activeTab === "custom" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      API Base URL
-                    </label>
-                    <input
-                      type="url"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      placeholder="https://api.example.com/v1"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      value={customKey}
-                      onChange={(e) => setCustomKey(e.target.value)}
-                      placeholder="您的 API Key"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                  </div>
-                  <p className="text-sm text-slate-500">
-                    適用於自訂的 OpenAI 相容端點
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Save Button */}
-            <div className="mt-6 flex items-center gap-4">
-              <button
-                onClick={handleSave}
-                className="rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white hover:shadow-lg transition-all duration-300"
-              >
-                儲存設定
-              </button>
-              {showSuccess && (
-                <span className="text-sm text-emerald-600 font-medium animate-fade-in">
-                  ✓ 設定已儲存
-                </span>
-              )}
-            </div>
+          <div style={{ marginTop: isMobile ? 16 : 24 }}>
+            <Button
+              type="primary"
+              onClick={handleSave}
+              className="gradient-button"
+              block={isMobile}
+              style={{ height: isMobile ? 36 : 40, paddingLeft: 24, paddingRight: 24 }}
+            >
+              儲存設定
+            </Button>
           </div>
-        </div>
+        </Card>
       </section>
 
       {/* CTA Section */}
-      <section className="container mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        <div className="max-w-4xl mx-auto text-center">
-          <Link
-            href="/analyze"
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-12 py-4 text-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+      <section style={{ padding: isMobile ? "0 16px 48px" : "0 24px 96px", textAlign: "center" }}>
+        <Link href="/analyze">
+          <Button
+            type="primary"
+            size="large"
+            icon={<ArrowRightOutlined />}
+            className="gradient-button"
+            block={isMobile}
+            style={{
+              height: isMobile ? 48 : 56,
+              paddingLeft: isMobile ? 24 : 48,
+              paddingRight: isMobile ? 24 : 48,
+              fontSize: isMobile ? 16 : 18,
+              fontWeight: 600,
+              borderRadius: 12,
+              maxWidth: isMobile ? "100%" : "auto",
+            }}
           >
             開始分析
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 7l5 5m0 0l-5 5m5-5H6"
-              />
-            </svg>
-          </Link>
-        </div>
+          </Button>
+        </Link>
       </section>
     </div>
   );
