@@ -1,6 +1,6 @@
 # AutoNote&Slide - 技術文檔
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://autonote.up.railway.app)
+
 
 **📋 專案概述**
 
