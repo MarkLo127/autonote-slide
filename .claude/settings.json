@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const l = require\\('./node_modules/lucide-react'\\); const keys = Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('github'\\) || k.toLowerCase\\(\\).includes\\('git'\\)\\); console.log\\(keys\\);\")",
+      "Bash(pnpm -C frontend add @tailwindcss/postcss)"
+    ]
+  }
+}
