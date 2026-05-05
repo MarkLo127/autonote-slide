@@ -1,0 +1,15 @@
+{
+  "buildCommand": "pnpm -C frontend i && pnpm -C frontend build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    { "source": "/analyze", "destination": "/api/index" },
+    { "source": "/analyze/:path*", "destination": "/api/index" },
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300
+    }
+  }
+}
