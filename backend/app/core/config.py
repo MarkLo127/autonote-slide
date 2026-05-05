@@ -3,15 +3,23 @@ from typing import Optional
 
 # === 專案路徑 ===
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-STORAGE_DIR = os.path.join(BASE_DIR, "storage")
-UPLOAD_DIR = os.path.join(STORAGE_DIR, "uploads")
-WORDCLOUD_DIR = os.path.join(STORAGE_DIR, "wordclouds")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 
-STATIC_DIR = STORAGE_DIR
 STATIC_MOUNT = "/storage"
 ASSETS_MOUNT = "/assets"
+
+# Vercel 的檔案系統是唯讀的，只有 /tmp 可寫
+_IS_VERCEL = bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+if _IS_VERCEL:
+    UPLOAD_DIR = "/tmp/uploads"
+    WORDCLOUD_DIR = "/tmp/wordclouds"
+    STATIC_DIR = None  # Vercel 上不掛載靜態檔案（改用 base64 data URL）
+else:
+    STORAGE_DIR = os.path.join(BASE_DIR, "storage")
+    UPLOAD_DIR = os.path.join(STORAGE_DIR, "uploads")
+    WORDCLOUD_DIR = os.path.join(STORAGE_DIR, "wordclouds")
+    STATIC_DIR = STORAGE_DIR
 
 # === 字型自動搜尋 ===
 FONT_EXTS = (".ttf", ".otf", ".ttc")

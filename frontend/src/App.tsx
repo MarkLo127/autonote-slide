@@ -808,7 +808,9 @@ export default function App() {
                 </div>
                 <div className="p-4">
                   <img
-                    src={`${BACKEND}${result.wordcloud_image_url}`}
+                    src={result.wordcloud_image_url?.startsWith('data:')
+                      ? result.wordcloud_image_url
+                      : `${BACKEND}${result.wordcloud_image_url}`}
                     alt="文件關鍵字雲圖"
                     className="w-full rounded-lg"
                     loading="lazy"

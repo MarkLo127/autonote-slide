@@ -12,7 +12,7 @@ from backend.app.services.analyze.page_parser import parse_pages
 from backend.app.services.analyze.summary_engine import SummaryEngine
 from backend.app.services.nlp.language_detect import detect_lang, determine_visual_language
 from backend.app.services.nlp.keyword_extractor import extract_keywords_by_paragraph
-from backend.app.services.storage import make_public_url, save_upload
+from backend.app.services.storage import save_upload
 from backend.app.services.wordcloud.wordcloud_gen import build_wordcloud
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
@@ -181,8 +181,7 @@ async def analyze_file(
 
                 wordcloud_url = None
                 try:
-                    wc_path = build_wordcloud(visual_keywords, visual_language, joined_text)
-                    wordcloud_url = make_public_url(wc_path)
+                    wordcloud_url = build_wordcloud(visual_keywords, visual_language, joined_text)
                 except Exception as exc:  # pylint: disable=broad-except
                     reason = "文字雲生成失敗"
                     if isinstance(exc, RuntimeError) and "不足" in str(exc):

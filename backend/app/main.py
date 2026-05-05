@@ -47,8 +47,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# ===== 靜態資源掛載 =====
-if os.path.isdir(STATIC_DIR):
+# ===== 靜態資源掛載（本機 / Docker 模式；Vercel 改用 base64 data URL）=====
+if STATIC_DIR and os.path.isdir(STATIC_DIR):
     app.mount(STATIC_MOUNT, StaticFiles(directory=STATIC_DIR), name="storage")
 
 if os.path.isdir(ASSETS_DIR):

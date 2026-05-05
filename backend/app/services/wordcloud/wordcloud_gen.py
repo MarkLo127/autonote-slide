@@ -1,12 +1,12 @@
-import os
+import base64
 import re
-from datetime import datetime
+from io import BytesIO
 from typing import Dict, List, Optional
 
 import jieba
 from wordcloud import WordCloud
 
-from backend.app.core.config import DEFAULT_EN_FONT, DEFAULT_ZH_FONT, WORDCLOUD_DIR
+from backend.app.core.config import DEFAULT_EN_FONT, DEFAULT_ZH_FONT
 
 EN_WORD_RE = re.compile(r"[A-Za-z][A-Za-z\-']{1,}")
 
@@ -24,7 +24,7 @@ def _tokenize_fallback(text: Optional[str], lang: str) -> List[str]:
 
 
 def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Optional[str] = None) -> str:
-    os.makedirs(WORDCLOUD_DIR, exist_ok=True)
+    """Generate a word cloud and return it as a base64 PNG data URL."""
 
     # Tier 1: collect keywords from paragraph analysis
     collected: List[str] = []
@@ -58,7 +58,7 @@ def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Op
     # Tier 3: font selection with English fallback when CJK font is missing
     font_path = DEFAULT_ZH_FONT if is_zh else DEFAULT_EN_FONT
 
-    if is_zh and (not font_path or not os.path.exists(font_path)):
+    if is_zh and (not font_path or not __import__("os").path.exists(font_path)):
         english_words = [w for w in collected if EN_WORD_RE.search(w)]
         if len(english_words) >= 5:
             text = " ".join(english_words[:1000])
@@ -82,6 +82,7 @@ def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Op
         prefer_horizontal=0.9,
     ).generate(text)
 
-    out = os.path.join(WORDCLOUD_DIR, f"wc_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}.png")
-    wc.to_file(out)
-    return out
+    buf = BytesIO()
+    wc.to_image().save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
