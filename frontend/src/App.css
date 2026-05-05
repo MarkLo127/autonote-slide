@@ -1,0 +1,76 @@
+/* ── Glassmorphism card ─────────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(13, 22, 40, 0.75);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Electric blue glow (submit button) ─────────────────────────────────── */
+.glow-accent {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4), 0 4px 15px rgba(59, 130, 246, 0.2);
+}
+.glow-accent:hover {
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.55), 0 4px 20px rgba(59, 130, 246, 0.3);
+}
+
+/* ── Logo icon glow ─────────────────────────────────────────────────────── */
+.logo-icon {
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5), 0 0 4px rgba(59, 130, 246, 0.8);
+}
+
+/* ── Progress bar shimmer ───────────────────────────────────────────────── */
+.progress-fill {
+  background: linear-gradient(90deg, #3B82F6, #6366F1, #3B82F6);
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s linear infinite;
+}
+@keyframes progress-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── Font utilities ─────────────────────────────────────────────────────── */
+.font-display  { font-family: var(--font-display), var(--font-sans); }
+.font-mono-ui  { font-family: var(--font-mono), monospace; }
+
+@media print {
+  /* Hide interactive / chrome elements */
+  .no-print { display: none !important; }
+
+  /* Reset page background */
+  body { background: white !important; }
+
+  /* Allow content to use full page width */
+  main {
+    max-width: 100% !important;
+    padding: 0 16px !important;
+  }
+
+  /* Prevent cards from splitting across pages */
+  .rounded-xl,
+  .rounded-2xl {
+    break-inside: avoid;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Remove hover/backdrop effects */
+  header { background: white !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+  /* Force accordion content visible when printing (React renders it only when expanded) */
+  /* handlePrint expands all sections before calling window.print(), so this is just a safety net */
+  [data-print-visible] { display: block !important; }
+
+  /* Typography scale-down for print */
+  .text-base { font-size: 11pt; }
+  .text-sm   { font-size: 10pt; }
+  .text-xs   { font-size: 8.5pt; }
+
+  /* Page break hints */
+  section { break-inside: avoid; }
+  h2 { break-after: avoid; }
+}

@@ -2,15 +2,14 @@ import asyncio
 import json
 import os
 from typing import Optional
-from enum import Enum
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from backend.app.models.schemas import AnalyzeResponse, LLMSettings, PageSummary, Paragraph, MODEL_PROVIDERS, MODEL_LEVEL_MAPPING
+from backend.app.models.schemas import AnalyzeResponse, LLMSettings, Paragraph, MODEL_PROVIDERS
 from backend.app.services.analyze.page_classifier import classify_page
 from backend.app.services.analyze.page_parser import parse_pages
-from backend.app.services.analyze.summary_engine import SummaryEngine, SYSTEM_PROMPT
+from backend.app.services.analyze.summary_engine import SummaryEngine
 from backend.app.services.nlp.language_detect import detect_lang, determine_visual_language
 from backend.app.services.nlp.keyword_extractor import extract_keywords_by_paragraph
 from backend.app.services.storage import make_public_url, save_upload
@@ -18,18 +17,11 @@ from backend.app.services.wordcloud.wordcloud_gen import build_wordcloud
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
-class AnalysisLevel(str, Enum):
-    LIGHT = "light"
-    MEDIUM = "medium"
-    DEEP = "deep"
 
 @router.get("/providers")
 async def get_providers():
     """取得所有可用的 LLM 供應商與模型資訊"""
-    return {
-        "providers": MODEL_PROVIDERS,
-        "level_mapping": MODEL_LEVEL_MAPPING
-    }
+    return {"providers": MODEL_PROVIDERS}
 
 
 @router.post("")
@@ -39,8 +31,7 @@ async def analyze_file(
     llm_model: str = Form("gpt-5-mini-2025-08-07"),
     llm_provider: Optional[str] = Form(None),
     llm_base_url: Optional[str] = Form(None),
-    analysis_level: Optional[AnalysisLevel] = Form(None),
-    enable_vision: bool = Form(False),  # 是否啟用圖片分析
+    enable_vision: bool = Form(False),
 ):
     if not file.filename:
         raise HTTPException(400, "檔案名稱缺失，請重新上傳。")
@@ -62,21 +53,9 @@ async def analyze_file(
                 saved_path = save_upload(content, filename)
                 await push_event({"type": "progress", "progress": 12, "message": "檔案儲存完成"})
 
-                # 決定要使用的模型
-                # 優先級：1. 用户明确选择的模型 (llm_model) -> 2. analysis_level + provider 自动选择
-                from backend.app.models.schemas import MODEL_PROVIDERS, MODEL_LEVEL_MAPPING
-                
                 actual_base_url = llm_base_url
-                selected_model = llm_model  # 默认使用用户选择的模型
-                
-                # 只有当用户没有提供模型时，才使用 analysis_level 进行自动选择
-                if (not llm_model or llm_model.strip() == "") and analysis_level and llm_provider:
-                    # 使用分析级别和供应商来自动选择模型
-                    if llm_provider in MODEL_LEVEL_MAPPING:
-                        level_str = analysis_level.value if hasattr(analysis_level, 'value') else str(analysis_level)
-                        selected_model = MODEL_LEVEL_MAPPING[llm_provider].get(level_str, llm_model)
-                
-                # 设置 base_url
+                selected_model = llm_model or "gpt-5-mini-2025-08-07"
+
                 if not actual_base_url and llm_provider and llm_provider in MODEL_PROVIDERS:
                     actual_base_url = MODEL_PROVIDERS[llm_provider]["base_url"]
 
@@ -191,13 +170,13 @@ async def analyze_file(
                     Paragraph(index=idx, text=page.text or "", start_char=0, end_char=len(page.text or ""))
                     for idx, page in enumerate(pages)
                 ]
-                paragraph_keywords = extract_keywords_by_paragraph(paragraph_objs, language)
+                paragraph_keywords = extract_keywords_by_paragraph(paragraph_objs, language, topk=20)
                 keyword_lookup = {item["paragraph_index"]: item["keywords"] for item in paragraph_keywords}
 
                 visual_keywords = (
                     paragraph_keywords
                     if visual_language == language
-                    else extract_keywords_by_paragraph(paragraph_objs, visual_language)
+                    else extract_keywords_by_paragraph(paragraph_objs, visual_language, topk=20)
                 )
 
                 wordcloud_url = None
@@ -216,25 +195,16 @@ async def analyze_file(
                         }
                     )
 
-                # 轉換為舊格式以保持前端兼容
-                legacy_results = [result.to_legacy_format() for result in page_results]
-                
                 response_payload = AnalyzeResponse(
                     language=language,
                     total_pages=total_pages,
                     page_summaries=[
-                        PageSummary(
-                            page_number=result.page_number,
-                            classification=result.classification,
-                            bullets=result.bullets,
-                            keywords=keyword_lookup.get(result.page_number - 1, []),
-                            skipped=result.skipped,
-                            skip_reason=result.skip_reason,
+                        result.to_structured(
+                            keywords=keyword_lookup.get(result.page_number - 1, [])
                         )
-                        for result in legacy_results
+                        for result in page_results
                     ],
                     global_summary=global_summary,
-                    system_prompt=SYSTEM_PROMPT,
                     wordcloud_image_url=wordcloud_url,
                 )
 

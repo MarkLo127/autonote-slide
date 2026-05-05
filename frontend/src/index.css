@@ -1,20 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
   --color-primary: #1E293B;
-  --color-secondary: #334155;
-  --color-accent: #2563EB;
-  --color-accent-hover: #1D4ED8;
-  --color-background: #F8FAFC;
-  --color-surface: #FFFFFF;
-  --color-foreground: #0F172A;
-  --color-muted: #F1F5F9;
+  --color-secondary: #CBD5E1;
+  --color-accent: #3B82F6;
+  --color-accent-hover: #2563EB;
+  --color-accent-glow: rgba(59, 130, 246, 0.25);
+  --color-background: #070C18;
+  --color-surface: #0D1628;
+  --color-foreground: #E2E8F0;
+  --color-muted: #111C35;
   --color-muted-fg: #64748B;
-  --color-border: #E2E8F0;
+  --color-border: rgba(148, 163, 184, 0.12);
   --color-destructive: #DC2626;
   --color-success: #16A34A;
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
 *, *::before, *::after {
@@ -33,6 +38,11 @@ html {
 
 body {
   margin: 0;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 20% 60%, rgba(59, 130, 246, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 80% 20%, rgba(139, 92, 246, 0.04) 0%, transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.08) 1px, transparent 0);
+  background-size: 100% 100%, 100% 100%, 20px 20px;
 }
 
 @media (prefers-reduced-motion: reduce) {

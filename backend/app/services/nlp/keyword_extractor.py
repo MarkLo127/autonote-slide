@@ -65,7 +65,7 @@ def _tokenize(text: str, lang: str):
         return [w.strip() for w in jieba.cut(text) if w.strip()]
     return re.findall(r"[A-Za-z][A-Za-z\-']{1,}", text.lower())
 
-def extract_keywords_by_paragraph(paragraphs: List[Paragraph], lang: str, topk: int = 8):
+def extract_keywords_by_paragraph(paragraphs: List[Paragraph], lang: str, topk: int = 20):
     results = []
     stop = ZH_STOP if _is_zh(lang) else EN_STOP
     for p in paragraphs:

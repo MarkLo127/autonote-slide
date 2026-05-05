@@ -16,17 +16,17 @@ def _tokenize_fallback(text: Optional[str], lang: str) -> List[str]:
         return []
     lowered = (lang or "").lower()
     if lowered.startswith("zh"):
-        return [token.strip() for token in jieba.cut(text) if token.strip()]
+        return [token.strip() for token in jieba.cut(text) if token.strip() and len(token.strip()) > 1]
     if lowered.startswith("en"):
-        return re.findall(r"[A-Za-z][A-Za-z\-']{1,}", text.lower())
+        return re.findall(r"[A-Za-z][A-Za-z\-']{2,}", text.lower())
     tokens = re.split(r"\s+", text)
     return [token.strip() for token in tokens if token.strip()]
 
 
 def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Optional[str] = None) -> str:
-    # ✅ 用到時才建
     os.makedirs(WORDCLOUD_DIR, exist_ok=True)
 
+    # Tier 1: collect keywords from paragraph analysis
     collected: List[str] = []
     for item in paragraph_keywords:
         keywords = item.get("keywords") if isinstance(item, dict) else None
@@ -38,30 +38,50 @@ def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Op
                 if stripped:
                     collected.append(stripped)
 
-    if not collected and fallback_text:
+    # Tier 2: if not enough keywords, fall back to full-text tokenisation
+    if len(collected) < 15 and fallback_text:
         collected = _tokenize_fallback(fallback_text, lang)
 
-    lowered_lang = (lang or '').lower()
-    if lowered_lang.startswith('en'):
-        english_only = [word for word in collected if EN_WORD_RE.search(word)]
-        if english_only:
-            collected = english_only
-
-    # WordCloud 需要至少一個詞彙才能生成
     if not collected:
         raise RuntimeError("文字內容不足，無法生成文字雲。")
 
+    lowered_lang = (lang or "").lower()
+    is_zh = lowered_lang.startswith("zh")
+
+    if not is_zh:
+        english_only = [w for w in collected if EN_WORD_RE.search(w)]
+        if english_only:
+            collected = english_only
+
     text = " ".join(collected[:1000])
 
-    is_zh = str(lang).lower().startswith("zh")
+    # Tier 3: font selection with English fallback when CJK font is missing
     font_path = DEFAULT_ZH_FONT if is_zh else DEFAULT_EN_FONT
-    if is_zh and (not font_path or not os.path.exists(font_path)):
-        raise RuntimeError(
-            "找不到中文字型：請將 Noto Sans TC / Noto Sans CJK 放到 assets/fonts/，"
-            "或用環境變數 FONT_ZH_PATH 指向字型檔。"
-        )
 
-    wc = WordCloud(background_color="white", width=1200, height=600, font_path=font_path or None).generate(text)
+    if is_zh and (not font_path or not os.path.exists(font_path)):
+        english_words = [w for w in collected if EN_WORD_RE.search(w)]
+        if len(english_words) >= 5:
+            text = " ".join(english_words[:1000])
+            font_path = DEFAULT_EN_FONT
+            is_zh = False
+        else:
+            raise RuntimeError(
+                "找不到中文字型：請將 Noto Sans TC / Noto Sans CJK 放到 assets/fonts/，"
+                "或用環境變數 FONT_ZH_PATH 指向字型檔。"
+            )
+
+    wc = WordCloud(
+        background_color="white",
+        width=1200,
+        height=600,
+        font_path=font_path or None,
+        max_words=150,
+        min_font_size=10,
+        max_font_size=80,
+        collocations=False,
+        prefer_horizontal=0.9,
+    ).generate(text)
+
     out = os.path.join(WORDCLOUD_DIR, f"wc_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}.png")
     wc.to_file(out)
     return out

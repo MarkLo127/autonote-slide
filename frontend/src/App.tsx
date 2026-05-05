@@ -11,13 +11,11 @@ const BACKEND = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? ''
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type AppState = 'idle' | 'analyzing' | 'done' | 'error'
-type Level = 'light' | 'medium' | 'deep'
 
 interface Config {
   provider: string
   apiKey: string
   model: string
-  analysisLevel: Level
   enableVision: boolean
   customBaseUrl: string
 }
@@ -25,7 +23,10 @@ interface Config {
 interface PageSummary {
   page_number: number
   classification: string
-  bullets: string[]
+  summary: string
+  findings: string[]
+  data: string[]
+  actions: string[]
   keywords: string[]
   skipped: boolean
   skip_reason: string | null
@@ -36,12 +37,10 @@ interface AnalysisResult {
   total_pages: number
   page_summaries: PageSummary[]
   global_summary: {
-    bullets: string[]
-    expansions: {
-      key_conclusions: string
-      core_data: string
-      risks_and_actions: string
-    }
+    overview: string
+    key_conclusions: string[]
+    core_data: string[]
+    risks_and_actions: string[]
   }
   wordcloud_image_url: string | null
 }
@@ -100,15 +99,6 @@ const DEFAULT_PROVIDERS: Record<string, ProviderInfo> = {
   },
 }
 
-const DEFAULT_LEVEL_MAPPING: Record<string, Record<Level, string>> = {
-  openai:   { light: 'gpt-5-nano-2025-08-07',      medium: 'gpt-5-mini-2025-08-07',    deep: 'gpt-5.1-2025-11-13' },
-  claude:   { light: 'claude-3-7-sonnet-20250219',  medium: 'claude-sonnet-4-20250514', deep: 'claude-sonnet-4-5-20250929' },
-  gemini:   { light: 'gemini-2.5-flash-lite',       medium: 'gemini-2.5-flash',         deep: 'gemini-2.5-pro' },
-  deepseek: { light: 'deepseek-chat',               medium: 'deepseek-chat',            deep: 'deepseek-reasoner' },
-  qwen:     { light: 'qwen-flash',                  medium: 'qwen-plus',                deep: 'qwen3-max' },
-  grok:     { light: 'grok-3-mini',                 medium: 'grok-4',                   deep: 'grok-4-1-fast-reasoning' },
-}
-
 // ── Model display names ───────────────────────────────────────────────────────
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -142,25 +132,13 @@ const modelLabel = (id: string) => MODEL_DISPLAY_NAMES[id] ?? id
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
-  normal: 'Content',
-  toc: 'Table of Contents',
-  blank: 'Blank',
-  cover: 'Cover',
-  pure_image: 'Image Only',
-  photo_page: 'Photo',
-  reference: 'References',
-}
-
-const LEVEL_LABELS: Record<Level, string> = {
-  light: 'Light',
-  medium: 'Medium',
-  deep: 'Deep',
-}
-
-const LEVEL_DESCRIPTIONS: Record<Level, string> = {
-  light: 'Fastest, uses smallest model',
-  medium: 'Balanced speed & quality',
-  deep: 'Most thorough, slowest',
+  normal: '內容',
+  toc: '目錄',
+  blank: '空白頁',
+  cover: '封面',
+  pure_image: '純圖片',
+  photo_page: '照片頁',
+  reference: '參考資料',
 }
 
 function langLabel(lang: string) {
@@ -176,7 +154,7 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [progressMsg, setProgressMsg] = useState('Starting analysis…')
+  const [progressMsg, setProgressMsg] = useState('開始分析…')
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showKey, setShowKey] = useState(false)
@@ -186,17 +164,29 @@ export default function App() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [expandedPages, setExpandedPages] = useState<Set<number>>(new Set())
   const [providers, setProviders] = useState<Record<string, ProviderInfo>>(DEFAULT_PROVIDERS)
-  const [levelMapping, setLevelMapping] = useState<Record<string, Record<Level, string>>>(DEFAULT_LEVEL_MAPPING)
-  const [config, setConfig] = useState<Config>({
-    provider: 'openai',
-    apiKey: '',
-    model: DEFAULT_LEVEL_MAPPING.openai.medium,
-    analysisLevel: 'medium',
-    enableVision: false,
-    customBaseUrl: '',
+  const [config, setConfig] = useState<Config>(() => {
+    try {
+      const saved = localStorage.getItem('autonote_config')
+      if (saved) {
+        const p = JSON.parse(saved) as Partial<Config>
+        return {
+          provider:      p.provider      ?? 'openai',
+          apiKey:        p.apiKey        ?? '',
+          model:         p.model         ?? 'gpt-5-mini-2025-08-07',
+          enableVision:  p.enableVision  ?? false,
+          customBaseUrl: p.customBaseUrl ?? '',
+        }
+      }
+    } catch { /* ignore */ }
+    return { provider: 'openai', apiKey: '', model: 'gpt-5-mini-2025-08-07', enableVision: false, customBaseUrl: '' }
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Persist config (apiKey, customBaseUrl, provider, model) to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('autonote_config', JSON.stringify(config)) } catch { /* ignore */ }
+  }, [config])
 
   // Revoke blob URL when it changes or component unmounts
   useEffect(() => {
@@ -210,17 +200,18 @@ export default function App() {
       .then((data) => {
         if (!data) return
         setProviders(prev => ({ ...prev, ...(data.providers ?? {}) }))
-        setLevelMapping(prev => ({ ...prev, ...(data.level_mapping ?? {}) }))
       })
       .catch(() => { /* backend not reachable, static defaults are used */ })
   }, [])
 
-  // When provider or level changes, auto-select the mapped model (skip for custom)
+  // When provider changes, auto-select the first available model
   useEffect(() => {
     if (config.provider === 'custom') return
-    const mapped = levelMapping[config.provider]?.[config.analysisLevel]
-    if (mapped) setConfig(c => ({ ...c, model: mapped }))
-  }, [config.provider, config.analysisLevel, levelMapping])
+    const models = providers[config.provider]?.models ?? []
+    if (models.length > 0 && !models.includes(config.model)) {
+      setConfig(c => ({ ...c, model: models[0] }))
+    }
+  }, [config.provider, providers])
 
   const providerModels = providers[config.provider]?.models ?? []
 
@@ -265,7 +256,7 @@ export default function App() {
     if (!file || !config.apiKey) return
     setAppState('analyzing')
     setProgress(0)
-    setProgressMsg('Starting analysis…')
+    setProgressMsg('開始分析…')
     setError(null)
 
     const formData = new FormData()
@@ -273,7 +264,6 @@ export default function App() {
     formData.append('llm_api_key', config.apiKey)
     formData.append('llm_model', config.model)
     formData.append('llm_provider', config.provider)
-    formData.append('analysis_level', config.analysisLevel)
     formData.append('enable_vision', String(config.enableVision))
     if (config.customBaseUrl) formData.append('llm_base_url', config.customBaseUrl)
 
@@ -335,7 +325,7 @@ export default function App() {
     setPreviewUrl(null)
     setShowPreview(false)
     setProgress(0)
-    setProgressMsg('Starting analysis…')
+    setProgressMsg('開始分析…')
     setResult(null)
     setError(null)
     setExpandedSections(new Set())
@@ -359,19 +349,32 @@ export default function App() {
     })
   }
 
+  const handlePrint = useCallback(() => {
+    if (result) {
+      setExpandedPages(new Set(result.page_summaries.filter(p => !p.skipped).map(p => p.page_number)))
+      setExpandedSections(new Set(['key_conclusions', 'core_data', 'risks_and_actions']))
+    }
+    const originalTitle = document.title
+    if (file) document.title = file.name.replace(/\.pdf$/i, '')
+    setTimeout(() => {
+      window.print()
+      setTimeout(() => { document.title = originalTitle }, 1000)
+    }, 150)
+  }, [result, file])
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-dvh bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-white/80 backdrop-blur-sm sticky top-0 z-40 no-print">
+      <header className="border-b border-border bg-background/85 backdrop-blur-md sticky top-0 z-40 no-print">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[#2563EB] flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center logo-icon">
               <FileText className="w-4 h-4 text-white" />
             </div>
             <span className="font-semibold text-foreground text-[15px] tracking-tight">
-              AutoNote<span className="text-[#2563EB]">&Slide</span>
+              AutoNote<span className="text-accent">&Slide</span>
             </span>
           </div>
           {(appState === 'done' || appState === 'analyzing') && (
@@ -379,22 +382,22 @@ export default function App() {
               {appState === 'done' && (
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#334155] hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                  aria-label="Print or export as PDF"
+                  onClick={handlePrint}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-secondary hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                  aria-label="列印或匯出為 PDF"
                 >
                   <Printer className="w-4 h-4" />
-                  Export
+                  匯出
                 </button>
               )}
               <button
                 type="button"
                 onClick={handleReset}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#334155] hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                aria-label="Start a new analysis"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-secondary hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                aria-label="開始新分析"
               >
                 <RotateCcw className="w-4 h-4" />
-                New Analysis
+                新分析
               </button>
             </div>
           )}
@@ -408,10 +411,10 @@ export default function App() {
           <div className="space-y-6">
             <div className="text-center pt-2 pb-4">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-                Analyze your PDF instantly
+                即時分析您的 PDF
               </h1>
               <p className="mt-2 text-muted-fg text-sm sm:text-base">
-                Upload a document and get structured summaries, keyword extraction, and a visual word cloud.
+                上傳文件，獲取結構化摘要、關鍵字提取與視覺化文字雲。
               </p>
             </div>
 
@@ -424,10 +427,10 @@ export default function App() {
                 'relative rounded-2xl border-2 border-dashed transition-all duration-150',
                 'flex flex-col items-center justify-center gap-3 py-12 px-6 text-center',
                 isDragging
-                  ? 'border-accent bg-blue-50/60 scale-[1.01]'
+                  ? 'border-accent bg-accent/10 scale-[1.01]'
                   : file
-                    ? 'border-accent/40 bg-white'
-                    : 'border-[#CBD5E1] hover:border-[#93C5FD] bg-white',
+                    ? 'border-accent/40 bg-surface'
+                    : 'border-border hover:border-accent/40 bg-surface',
               ].join(' ')}
             >
               <input
@@ -436,12 +439,12 @@ export default function App() {
                 accept=".pdf,application/pdf"
                 className="sr-only"
                 onChange={handleFileInput}
-                aria-label="PDF file input"
+                aria-label="PDF 檔案輸入"
               />
               {file ? (
                 <>
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-[#2563EB]" />
+                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-accent" />
                   </div>
                   <div>
                     <p className="font-semibold text-foreground text-sm">{file.name}</p>
@@ -450,29 +453,29 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => { setFile(null); setPreviewUrl(null); setShowPreview(false); if (fileInputRef.current) fileInputRef.current.value = '' }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-fg hover:text-destructive hover:bg-red-50 transition-colors cursor-pointer"
-                    aria-label="Remove selected file"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-fg hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                    aria-label="移除已選擇的檔案"
                   >
-                    <X className="w-3.5 h-3.5" /> Remove
+                    <X className="w-3.5 h-3.5" /> 移除
                   </button>
                 </>
               ) : (
                 <button
                   type="button"
                   tabIndex={0}
-                  aria-label="Upload PDF file. Click or press Enter to browse."
+                  aria-label="上傳 PDF 檔案。點擊或按 Enter 鍵瀏覽。"
                   onKeyDown={handleDropZoneKey}
                   onClick={() => fileInputRef.current?.click()}
                   className="flex flex-col items-center gap-3 cursor-pointer bg-transparent border-0 p-0"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] flex items-center justify-center">
-                    <CloudUpload className="w-6 h-6 text-[#2563EB]" />
+                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <CloudUpload className="w-6 h-6 text-accent" />
                   </div>
                   <div>
                     <p className="font-semibold text-foreground text-sm">
-                      {isDragging ? 'Drop your PDF here' : 'Drop PDF here or click to browse'}
+                      {isDragging ? '放開以上傳 PDF' : '拖曳 PDF 至此或點擊瀏覽'}
                     </p>
-                    <p className="text-xs text-muted-fg mt-0.5">PDF only · Max 50 MB</p>
+                    <p className="text-xs text-muted-fg mt-0.5">僅支援 PDF · 最大 50 MB</p>
                   </div>
                 </button>
               )}
@@ -480,11 +483,11 @@ export default function App() {
 
             {/* PDF Preview */}
             {file && previewUrl && (
-              <div className="bg-white rounded-2xl border border-border overflow-hidden">
-                <div className="px-5 py-3 border-b border-muted flex items-center justify-between">
+              <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-border flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground flex items-center gap-2">
                     <FileText className="w-4 h-4 text-accent" />
-                    PDF Preview
+                    PDF 預覽
                   </span>
                   <button
                     type="button"
@@ -492,15 +495,15 @@ export default function App() {
                     className="flex items-center gap-1 text-xs text-muted-fg hover:text-secondary transition-colors cursor-pointer"
                   >
                     {showPreview
-                      ? <><ChevronUp className="w-3.5 h-3.5" /> Hide</>
-                      : <><ChevronDown className="w-3.5 h-3.5" /> Show</>}
+                      ? <><ChevronUp className="w-3.5 h-3.5" /> 隱藏</>
+                      : <><ChevronDown className="w-3.5 h-3.5" /> 顯示</>}
                   </button>
                 </div>
                 {showPreview && (
                   <div className="p-3">
                     <iframe
                       src={previewUrl}
-                      title="PDF preview"
+                      title="PDF 預覽"
                       className="w-full h-[70vh] rounded-lg border border-border"
                     />
                   </div>
@@ -509,16 +512,16 @@ export default function App() {
             )}
 
             {/* Config panel */}
-            <div className="bg-white rounded-2xl border border-border p-5 sm:p-6 space-y-5">
-              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-                LLM Configuration
+            <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-5">
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider font-display">
+                LLM 設定
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Provider */}
                 <div>
-                  <label htmlFor="provider-select" className="block text-xs font-medium text-[#475569] mb-1.5">
-                    Provider
+                  <label htmlFor="provider-select" className="block text-xs font-medium text-secondary mb-1.5">
+                    服務商
                   </label>
                   <select
                     id="provider-select"
@@ -527,7 +530,7 @@ export default function App() {
                       const p = e.target.value
                       setConfig(c => ({ ...c, provider: p, model: p === 'custom' ? '' : c.model }))
                     }}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-white text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-surface text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
                   >
                     {Object.keys(providers).length > 0
                       ? Object.keys(providers).map(p => (
@@ -542,8 +545,8 @@ export default function App() {
 
                 {/* Model */}
                 <div>
-                  <label htmlFor={config.provider === 'custom' ? 'model-input' : 'model-select'} className="block text-xs font-medium text-[#475569] mb-1.5">
-                    Model {config.provider === 'custom' && <span className="text-destructive" aria-hidden>*</span>}
+                  <label htmlFor={config.provider === 'custom' ? 'model-input' : 'model-select'} className="block text-xs font-medium text-secondary mb-1.5">
+                    模型 {config.provider === 'custom' && <span className="text-destructive" aria-hidden>*</span>}
                   </label>
                   {config.provider === 'custom' ? (
                     <input
@@ -552,16 +555,16 @@ export default function App() {
                       value={config.model}
                       onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
                       placeholder="e.g. gpt-4o, llama-3.1-70b"
-                      className="w-full h-10 px-3 rounded-lg border border-border bg-white text-sm text-foreground placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full h-10 px-3 rounded-lg border border-border bg-surface text-sm text-foreground placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-accent"
                       aria-required="true"
                     />
                   ) : (
                     <select
                       id="model-select"
-                      title="Select model"
+                      title="選擇模型"
                       value={config.model}
                       onChange={e => setConfig(c => ({ ...c, model: e.target.value }))}
-                      className="w-full h-10 px-3 rounded-lg border border-border bg-white text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+                      className="w-full h-10 px-3 rounded-lg border border-border bg-surface text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
                     >
                       {providerModels.map(m => <option key={m} value={m}>{modelLabel(m)}</option>)}
                     </select>
@@ -569,41 +572,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Analysis Level — hidden for custom provider (no level mapping available) */}
-              {config.provider !== 'custom' && (
-              <fieldset>
-                <legend className="text-xs font-medium text-[#475569] mb-2">Analysis Level</legend>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['light', 'medium', 'deep'] as Level[]).map(level => (
-                    <label
-                      key={level}
-                      className={[
-                        'relative flex flex-col items-center gap-1 p-3 rounded-xl border-2 cursor-pointer transition-all duration-150',
-                        config.analysisLevel === level
-                          ? 'border-[#2563EB] bg-blue-50/60 text-[#2563EB]'
-                          : 'border-border hover:border-[#93C5FD] text-muted-fg',
-                      ].join(' ')}
-                    >
-                      <input
-                        type="radio"
-                        name="analysisLevel"
-                        value={level}
-                        checked={config.analysisLevel === level}
-                        onChange={() => setConfig(c => ({ ...c, analysisLevel: level }))}
-                        className="sr-only"
-                      />
-                      <span className="text-sm font-semibold">{LEVEL_LABELS[level]}</span>
-                      <span className="text-[10px] text-center leading-tight opacity-70">{LEVEL_DESCRIPTIONS[level]}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              )}
-
               {/* API Key */}
               <div>
-                <label htmlFor="api-key-input" className="block text-xs font-medium text-[#475569] mb-1.5">
-                  API Key <span className="text-[#DC2626]" aria-hidden>*</span>
+                <label htmlFor="api-key-input" className="block text-xs font-medium text-secondary mb-1.5">
+                  API 金鑰 <span className="text-destructive" aria-hidden>*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -611,16 +583,16 @@ export default function App() {
                     type={showKey ? 'text' : 'password'}
                     value={config.apiKey}
                     onChange={e => setConfig(c => ({ ...c, apiKey: e.target.value }))}
-                    placeholder={`Your ${config.provider} API key`}
+                    placeholder={`您的 ${config.provider} API 金鑰`}
                     autoComplete="off"
-                    className="w-full h-10 px-3 pr-10 rounded-lg border border-border bg-white text-sm text-foreground placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="w-full h-10 px-3 pr-10 rounded-lg border border-border bg-surface text-sm text-foreground placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-accent"
                     aria-required="true"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(v => !v)}
-                    className="absolute inset-y-0 right-0 px-3 text-[#94A3B8] hover:text-[#475569] transition-colors cursor-pointer"
-                    aria-label={showKey ? 'Hide API key' : 'Show API key'}
+                    className="absolute inset-y-0 right-0 px-3 text-[#94A3B8] hover:text-secondary transition-colors cursor-pointer"
+                    aria-label={showKey ? '隱藏 API 金鑰' : '顯示 API 金鑰'}
                   >
                     {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -638,12 +610,12 @@ export default function App() {
                       className="sr-only peer"
                       id="vision-toggle"
                     />
-                    <div className="w-9 h-5 rounded-full bg-[#CBD5E1] peer-checked:bg-[#2563EB] transition-colors duration-150" />
+                    <div className="w-9 h-5 rounded-full bg-[#CBD5E1] peer-checked:bg-accent transition-colors duration-150" />
                     <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-150 peer-checked:translate-x-4" />
                   </div>
-                  <span className="text-sm text-[#334155]">
-                    <span className="font-medium">Enable Vision Analysis</span>
-                    <span className="text-[#94A3B8] ml-1 text-xs">(analyzes images in PDF, uses more tokens)</span>
+                  <span className="text-sm text-secondary">
+                    <span className="font-medium">啟用視覺分析</span>
+                    <span className="text-[#94A3B8] ml-1 text-xs">（分析 PDF 中的圖片，消耗較多 token）</span>
                   </span>
                 </label>
 
@@ -654,13 +626,13 @@ export default function App() {
                     className="flex items-center gap-1.5 text-xs text-muted-fg hover:text-secondary transition-colors cursor-pointer"
                   >
                     {showBaseUrl ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    Custom Base URL (optional)
+                    自訂 Base URL（選填）
                   </button>
                 )}
 
                 {(config.provider === 'custom' || showBaseUrl) && (
                   <div>
-                    <label htmlFor="base-url-input" className="block text-xs font-medium text-[#475569] mb-1.5">
+                    <label htmlFor="base-url-input" className="block text-xs font-medium text-secondary mb-1.5">
                       Base URL {config.provider === 'custom' && <span className="text-destructive" aria-hidden>*</span>}
                     </label>
                     <input
@@ -670,7 +642,7 @@ export default function App() {
                       onChange={e => setConfig(c => ({ ...c, customBaseUrl: e.target.value }))}
                       placeholder="https://api.example.com/v1"
                       required={config.provider === 'custom'}
-                      className="w-full h-10 px-3 rounded-lg border border-border bg-white text-sm text-foreground placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full h-10 px-3 rounded-lg border border-border bg-surface text-sm text-foreground placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-accent"
                     />
                   </div>
                 )}
@@ -685,12 +657,12 @@ export default function App() {
               className={[
                 'w-full h-12 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-150',
                 file && config.apiKey
-                  ? 'bg-accent hover:bg-accent-hover active:scale-[0.98] text-white cursor-pointer shadow-sm shadow-blue-200'
+                  ? 'bg-accent hover:bg-accent-hover active:scale-[0.98] text-white cursor-pointer glow-accent'
                   : 'bg-border text-[#94A3B8] cursor-not-allowed',
               ].join(' ')}
             >
               <Zap className="w-4 h-4" />
-              Analyze PDF
+              分析 PDF
             </button>
           </div>
         )}
@@ -699,7 +671,7 @@ export default function App() {
         {appState === 'analyzing' && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 no-print">
             <div className="relative">
-              <div className="w-20 h-20 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <div className="w-20 h-20 rounded-2xl bg-accent/10 flex items-center justify-center">
                 <FileText className="w-10 h-10 text-accent" />
               </div>
               <div className="absolute -top-1 -right-1">
@@ -708,21 +680,21 @@ export default function App() {
             </div>
 
             <div className="w-full max-w-md space-y-4 text-center">
-              <h2 className="text-lg font-semibold text-foreground">Analyzing your document…</h2>
+              <h2 className="text-lg font-semibold text-foreground font-display">正在分析您的文件…</h2>
               <p className="text-sm text-muted-fg min-h-6">{progressMsg}</p>
 
               <div className="space-y-2">
                 <div
                   role="progressbar"
-                  aria-label={`Analysis progress: ${progress}%`}
-                  className="h-2 rounded-full bg-[#E2E8F0] overflow-hidden"
+                  aria-label={`分析進度：${progress}%`}
+                  className="h-2 rounded-full bg-muted overflow-hidden"
                 >
                   <div
                     className="progress-fill h-full bg-accent rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                <p className="text-xs font-medium text-[#2563EB] tabular-nums">{progress}%</p>
+                <p className="text-xs font-medium text-accent tabular-nums font-mono-ui">{progress}%</p>
               </div>
             </div>
           </div>
@@ -734,20 +706,20 @@ export default function App() {
             role="alert"
             className="flex flex-col items-center justify-center min-h-[60vh] gap-6 no-print"
           >
-            <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center">
-              <AlertCircle className="w-8 h-8 text-[#DC2626]" />
+            <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-destructive" />
             </div>
             <div className="text-center space-y-2">
-              <h2 className="text-lg font-semibold text-foreground">Analysis failed</h2>
-              <p className="text-sm text-[#DC2626] max-w-md">{error}</p>
+              <h2 className="text-lg font-semibold text-foreground font-display">分析失敗</h2>
+              <p className="text-sm text-destructive max-w-md">{error}</p>
             </div>
             <button
               type="button"
               onClick={handleReset}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#0F172A] hover:bg-[#1E293B] active:scale-[0.97] text-white text-sm font-medium rounded-xl transition-all cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/80 active:scale-[0.97] text-white text-sm font-medium rounded-xl transition-all cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
-              Try Again
+              重試
             </button>
           </div>
         )}
@@ -758,41 +730,34 @@ export default function App() {
 
             {/* Meta badges */}
             <div className="flex items-center gap-2 flex-wrap no-print">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-medium border border-green-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-success/10 text-success text-xs font-medium border border-success/20">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Analysis complete
+                分析完成
               </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#F1F5F9] text-[#475569] text-xs font-medium border border-border">
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-muted text-muted-fg text-xs font-medium border border-border">
                 {langLabel(result.language)}
               </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#F1F5F9] text-[#475569] text-xs font-medium border border-border">
-                {result.total_pages} pages
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-muted text-muted-fg text-xs font-medium border border-border">
+                共 {result.total_pages} 頁
               </span>
             </div>
 
             {/* Global summary */}
-            <section aria-labelledby="global-summary-heading" className="bg-white rounded-2xl border border-border overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 id="global-summary-heading" className="font-semibold text-foreground text-base">Global Summary</h2>
+            <section aria-labelledby="global-summary-heading" className="glass-card rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h2 id="global-summary-heading" className="font-semibold text-foreground text-base font-display">全局摘要</h2>
               </div>
               <div className="px-5 py-4 space-y-3">
-                <ul className="space-y-2">
-                  {result.global_summary.bullets.map((b, i) => (
-                    <li key={i} className="flex gap-2.5 text-sm text-[#334155]">
-                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#2563EB] flex-shrink-0" />
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-sm text-secondary leading-relaxed">{result.global_summary.overview}</p>
 
                 {/* Accordion sections */}
-                <div className="space-y-2 pt-2">
+                <div className="space-y-2 pt-1">
                   {([
-                    { key: 'key_conclusions', label: 'Key Conclusions', icon: <CheckCircle2 className="w-4 h-4" /> },
-                    { key: 'core_data', label: 'Core Data', icon: <BarChart2 className="w-4 h-4" /> },
-                    { key: 'risks_and_actions', label: 'Risks & Actions', icon: <AlertTriangle className="w-4 h-4" /> },
-                  ] as const).map(({ key, label, icon }) => {
-                    const content = result.global_summary.expansions[key]
+                    { key: 'key_conclusions' as const, label: '關鍵結論', icon: <CheckCircle2 className="w-4 h-4" /> },
+                    { key: 'core_data' as const, label: '核心數據', icon: <BarChart2 className="w-4 h-4" /> },
+                    { key: 'risks_and_actions' as const, label: '行動建議', icon: <AlertTriangle className="w-4 h-4" /> },
+                  ]).map(({ key, label, icon }) => {
+                    const items: string[] = result.global_summary[key]
                     const expanded = expandedSections.has(key)
                     return (
                       <div key={key} className="rounded-xl border border-border overflow-hidden">
@@ -801,17 +766,31 @@ export default function App() {
                           onClick={() => toggleSection(key)}
                           className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-background transition-colors cursor-pointer"
                         >
-                          <span className="flex items-center gap-2 text-sm font-medium text-[#334155]">
+                          <span className="flex items-center gap-2 text-sm font-medium text-secondary">
                             <span className="text-accent">{icon}</span>
                             {label}
+                            {items.length > 0 && (
+                              <span className="text-xs font-normal text-muted-fg">({items.length})</span>
+                            )}
                           </span>
                           {expanded
                             ? <ChevronUp className="w-4 h-4 text-[#94A3B8] flex-shrink-0" />
                             : <ChevronDown className="w-4 h-4 text-[#94A3B8] flex-shrink-0" />}
                         </button>
                         {expanded && (
-                          <div className="px-4 pb-4 pt-1 text-sm text-[#475569] leading-relaxed border-t border-[#F1F5F9] whitespace-pre-wrap">
-                            {content}
+                          <div className="px-4 pb-4 pt-2 border-t border-border">
+                            {items.length === 0 ? (
+                              <p className="text-sm text-muted-fg italic">無相關內容</p>
+                            ) : (
+                              <ul className="space-y-1.5">
+                                {items.map((item, i) => (
+                                  <li key={i} className="flex gap-2 text-sm text-secondary">
+                                    <span className="text-accent mt-0.5 flex-shrink-0">›</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
                         )}
                       </div>
@@ -823,14 +802,14 @@ export default function App() {
 
             {/* Word cloud */}
             {result.wordcloud_image_url && (
-              <section aria-label="Word cloud visualization" className="bg-white rounded-2xl border border-border overflow-hidden">
-                <div className="px-5 py-4 border-b border-muted">
-                  <h2 className="font-semibold text-foreground text-base">Keyword Cloud</h2>
+              <section aria-label="關鍵字雲視覺化" className="glass-card rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h2 className="font-semibold text-foreground text-base font-display">關鍵字雲</h2>
                 </div>
                 <div className="p-4">
                   <img
                     src={`${BACKEND}${result.wordcloud_image_url}`}
-                    alt="Word cloud of document keywords"
+                    alt="文件關鍵字雲圖"
                     className="w-full rounded-lg"
                     loading="lazy"
                     width={1200}
@@ -842,10 +821,10 @@ export default function App() {
 
             {/* Page summaries */}
             <section aria-labelledby="pages-heading">
-              <h2 id="pages-heading" className="font-semibold text-foreground text-base mb-3">
-                Page Summaries
+              <h2 id="pages-heading" className="font-semibold text-foreground text-base mb-3 font-display">
+                逐頁摘要
                 <span className="ml-2 text-xs font-normal text-muted-fg">
-                  ({result.page_summaries.filter(p => !p.skipped).length} analyzed · {result.page_summaries.filter(p => p.skipped).length} skipped)
+                  （{result.page_summaries.filter(p => !p.skipped).length} 頁已分析 · {result.page_summaries.filter(p => p.skipped).length} 頁已略過）
                 </span>
               </h2>
 
@@ -858,24 +837,24 @@ export default function App() {
                     return (
                       <div
                         key={page.page_number}
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-white opacity-50"
+                        className="flex items-center gap-3 px-4 py-3 glass-card rounded-xl opacity-50"
                       >
-                        <span className="text-xs font-mono text-[#94A3B8] w-12 shrink-0">p.{page.page_number}</span>
+                        <span className="text-xs font-mono-ui text-[#94A3B8] w-12 shrink-0">p.{page.page_number}</span>
                         <span className="text-xs italic text-[#94A3B8]">{classLabel} — {page.skip_reason ?? 'skipped'}</span>
                       </div>
                     )
                   }
 
                   return (
-                    <div key={page.page_number} className="rounded-xl border border-border bg-white overflow-hidden">
+                    <div key={page.page_number} className="glass-card rounded-xl overflow-hidden">
                       <button
                         type="button"
                         onClick={() => togglePage(page.page_number)}
                         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background transition-colors cursor-pointer"
                       >
-                        <span className="text-xs font-mono text-[#94A3B8] w-12 shrink-0">p.{page.page_number}</span>
+                        <span className="text-xs font-mono-ui text-[#94A3B8] w-12 shrink-0">p.{page.page_number}</span>
                         <span className="flex-1 text-sm font-medium text-secondary truncate">
-                          {page.bullets[0] ?? classLabel}
+                          {page.summary || classLabel}
                         </span>
                         <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-fg">
                           {classLabel}
@@ -886,22 +865,50 @@ export default function App() {
                       </button>
 
                       {expanded && (
-                        <div className="px-4 pb-4 pt-1 border-t border-muted space-y-3">
-                          <ul className="space-y-1.5">
-                            {page.bullets.map((b, i) => (
-                              <li key={i} className="flex gap-2.5 text-sm text-[#475569]">
-                                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#93C5FD] shrink-0" />
-                                <span>{b}</span>
-                              </li>
-                            ))}
-                          </ul>
+                        <div className="px-4 pb-4 pt-2 border-t border-border space-y-3">
+                          {page.findings.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-fg uppercase tracking-wide mb-1.5">關鍵發現</p>
+                              <ul className="space-y-1">
+                                {page.findings.map((f, i) => (
+                                  <li key={i} className="flex gap-2 text-sm text-secondary">
+                                    <span className="text-accent shrink-0 mt-0.5">›</span>
+                                    <span>{f}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {page.data.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-fg uppercase tracking-wide mb-1.5">核心數據</p>
+                              <ul className="space-y-1">
+                                {page.data.map((d, i) => (
+                                  <li key={i} className="flex gap-2 text-sm text-secondary font-mono">
+                                    <span className="text-[#A78BFA] shrink-0 mt-0.5">›</span>
+                                    <span>{d}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {page.actions.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-fg uppercase tracking-wide mb-1.5">建議事項</p>
+                              <ul className="space-y-1">
+                                {page.actions.map((a, i) => (
+                                  <li key={i} className="flex gap-2 text-sm text-secondary">
+                                    <span className="text-[#FBBF24] shrink-0 mt-0.5">›</span>
+                                    <span>{a}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                           {page.keywords.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-wrap gap-1.5 pt-1">
                               {page.keywords.map(kw => (
-                                <span
-                                  key={kw}
-                                  className="px-2 py-0.5 rounded-md bg-[#EFF6FF] text-accent text-xs font-medium"
-                                >
+                                <span key={kw} className="px-2 py-0.5 rounded-md bg-accent/10 text-accent text-xs font-medium font-mono-ui">
                                   {kw}
                                 </span>
                               ))}
@@ -919,11 +926,11 @@ export default function App() {
             <div className="flex justify-center gap-3 pt-4 pb-8 no-print">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handlePrint}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border text-sm font-medium text-secondary hover:bg-muted active:scale-[0.97] transition-all cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
-                Export / Print
+                匯出 / 列印
               </button>
               <button
                 type="button"
@@ -931,7 +938,7 @@ export default function App() {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-foreground hover:bg-primary active:scale-[0.97] text-white text-sm font-medium transition-all cursor-pointer"
               >
                 <BookOpen className="w-4 h-4" />
-                Analyze Another
+                再分析一份
               </button>
             </div>
           </div>

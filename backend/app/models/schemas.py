@@ -6,21 +6,20 @@ from pydantic import BaseModel, Field
 class PageSummary(BaseModel):
     page_number: int
     classification: str
-    bullets: List[str]
+    summary: str
+    findings: List[str] = Field(default_factory=list)
+    data: List[str] = Field(default_factory=list)
+    actions: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
     skipped: bool
     skip_reason: Optional[str] = None
 
 
-class GlobalSummaryExpansions(BaseModel):
-    key_conclusions: str
-    core_data: str
-    risks_and_actions: str
-
-
 class GlobalSummary(BaseModel):
-    bullets: List[str]
-    expansions: GlobalSummaryExpansions
+    overview: str
+    key_conclusions: List[str] = Field(default_factory=list)
+    core_data: List[str] = Field(default_factory=list)
+    risks_and_actions: List[str] = Field(default_factory=list)
 
 
 # 模型特定的預設配置
@@ -188,40 +187,6 @@ MODEL_PROVIDERS = {
     }
 }
 
-# 模型級別映射 - 根據供應商和分析級別選擇對應的模型
-MODEL_LEVEL_MAPPING = {
-    "openai": {
-        "light": "gpt-5-nano-2025-08-07",
-        "medium": "gpt-5-mini-2025-08-07",
-        "deep": "gpt-5.1-2025-11-13",
-    },
-    "claude": {
-        "light": "claude-3-7-sonnet-20250219",
-        "medium": "claude-sonnet-4-20250514",
-        "deep": "claude-sonnet-4-5-20250929",
-    },
-    "gemini": {
-        "light": "gemini-2.5-flash-lite",
-        "medium": "gemini-2.5-flash",
-        "deep": "gemini-2.5-pro",
-    },
-    "deepseek": {
-        "light": "deepseek-chat",
-        "medium": "deepseek-chat",
-        "deep": "deepseek-reasoner",
-    },
-    "qwen": {
-        "light": "qwen-flash",
-        "medium": "qwen-plus",
-        "deep": "qwen3-max",
-    },
-    "grok": {
-        "light": "grok-3-mini",
-        "medium": "grok-4",
-        "deep": "grok-4-1-fast-reasoning",
-    },
-}
-
 
 
 class LLMSettings(BaseModel):
@@ -306,5 +271,4 @@ class AnalyzeResponse(BaseModel):
     total_pages: int
     page_summaries: List[PageSummary]
     global_summary: GlobalSummary
-    system_prompt: Optional[str] = None
     wordcloud_image_url: Optional[str] = None
