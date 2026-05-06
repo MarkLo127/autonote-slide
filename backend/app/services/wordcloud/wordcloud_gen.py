@@ -4,7 +4,6 @@ from io import BytesIO
 from typing import Dict, List, Optional
 
 import jieba
-from wordcloud import WordCloud
 
 from backend.app.core.config import DEFAULT_EN_FONT, DEFAULT_ZH_FONT
 
@@ -24,7 +23,12 @@ def _tokenize_fallback(text: Optional[str], lang: str) -> List[str]:
 
 
 def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Optional[str] = None) -> str:
-    """Generate a word cloud and return it as a base64 PNG data URL."""
+    """Generate a word cloud and return it as a base64 PNG data URL.
+    Raises RuntimeError if the wordcloud package is not installed."""
+    try:
+        from wordcloud import WordCloud  # lazy import — not available on Vercel
+    except ImportError as exc:
+        raise RuntimeError("wordcloud 套件未安裝，略過文字雲生成。") from exc
 
     # Tier 1: collect keywords from paragraph analysis
     collected: List[str] = []
@@ -55,10 +59,10 @@ def build_wordcloud(paragraph_keywords: List[Dict], lang: str, fallback_text: Op
 
     text = " ".join(collected[:1000])
 
-    # Tier 3: font selection with English fallback when CJK font is missing
+    import os
     font_path = DEFAULT_ZH_FONT if is_zh else DEFAULT_EN_FONT
 
-    if is_zh and (not font_path or not __import__("os").path.exists(font_path)):
+    if is_zh and (not font_path or not os.path.exists(font_path)):
         english_words = [w for w in collected if EN_WORD_RE.search(w)]
         if len(english_words) >= 5:
             text = " ".join(english_words[:1000])

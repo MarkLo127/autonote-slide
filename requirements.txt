@@ -6,8 +6,7 @@ pydantic
 langdetect
 jieba
 nltk
-wordcloud
 PyMuPDF
-pymupdf4llm>=0.0.17
+pymupdf4llm==0.0.17
 Pillow
 openai
