@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm -C frontend i && pnpm -C frontend build",
+  "buildCommand": "npm install --prefix frontend --legacy-peer-deps && npm run build --prefix frontend",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/analyze", "destination": "/api/index" },
