@@ -14,17 +14,6 @@
 - ☁️ 文字雲視覺化
 - 📑 專業 PDF 報告匯出
 
-## 📸 功能展示
-
-### 上傳介面
-![上傳介面](assets/1.png)
-
-### 分析結果展示
-![分析結果](assets/2.png)
-
-### 文字雲與摘要報告
-![文字雲與報告](assets/3.png)
-
 ## 🏗️ 系統架構
 
 ### 整體架構圖
@@ -352,20 +341,6 @@ wordcloud = generate_wordcloud(keywords, language)
 
 ## 🚀 部署架構
 
-### Railway 一鍵部署 ⭐
-
-**Live Demo**: [https://autonote.up.railway.app](https://autonote.up.railway.app)
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/autonote)
-
-**部署步驟**：
-1. 點擊上方 Railway 按鈕
-2. 連接您的 GitHub 倉庫
-3. 設定環境變數（見下方配置）
-4. 等待自動部署完成
-
-📖 **詳細部署教學**: 請參考 `RAILWAY_DEPLOYMENT.md`
-
 ### 本地開發
 
 ```bash
@@ -513,5 +488,5 @@ interface AnalyzeResponse {
 - PDF 報告生成
 - 錯誤處理
 ---
-**更新日期**: 2025-11-20  
-**版本**: 1.0.0
+**更新日期**: 2026-05-07
+**版本**: 1.0.1
