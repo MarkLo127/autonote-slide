@@ -1,0 +1,25 @@
+# nginx 設定模板：容器啟動時由 envsubst 帶入環境變數（同時相容本地 compose 與 Railway）。
+# PORT：對外監聽埠（本地=80；Railway 會注入）
+# GATEWAY_UPSTREAM：gateway 位址（本地=gateway:8000；Railway=<gateway 服務>.railway.internal:8000）
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    client_max_body_size 60m;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~ ^/(documents|healthz) {
+        proxy_pass http://${GATEWAY_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+    }
+}

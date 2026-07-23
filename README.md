@@ -1,492 +1,230 @@
-# AutoNote&Slide - 技術文檔
+# AutoNote — 本地 PDF 摘要 + 翻譯
 
+上傳外語（以英文為主）PDF，輸出**中文摘要、逐段原文/譯文對照、關鍵字文字雲、可下載的對照式 PDF 報告**。
 
+**核心特色**：完全本地推理、**零 API Key**、**不連任何雲端付費 LLM**、模型烤進 image、`docker compose up` 一鍵起。
 
-**📋 專案概述**
+> 版本 2.0 為「大動刀」重構：移除舊有 OpenAI 版前後端，改為純開源權重（Qwen3.5-4B）本地架構。
 
-**AutoNote&Slide** 是一個智能文件分析與摘要生成系統，能自動將 PDF 文件轉換為結構化的摘要報告，並生成視覺化的文字雲。系統支援多語言文檔分析。
-
-**核心功能**：
-- 📄 PDF 文件上傳與解析
-- 🤖 AI 驅動的分頁摘要生成
-- 📊 全局重點彙整（結論、數據、風險、行動建議）
-- 🏷️ 關鍵字自動提取
-- ☁️ 文字雲視覺化
-- 📑 專業 PDF 報告匯出
-
-## 🏗️ 系統架構
-
-### 整體架構圖
-
-```
-┌─────────────────┐         ┌─────────────────┐
-│                 │   HTTP  │                 │
-│  Next.js 前端   │ ◄─────► │  FastAPI 後端   │
-│   (React 19)    │         │   (Python 3.x)  │
-│                 │         │                 │
-└─────────────────┘         └─────────────────┘
-        │                           │
-        │                           ├─► PDF 解析 (PyMuPDF)
-        │                           ├─► NLP 處理 (jieba, nltk)
-        │                           ├─► LLM 摘要 (OpenAI API)
-        │                           └─► 文字雲生成 (wordcloud)
-        │
-        └─► PDF 報告生成 (pdf-lib)
-```
-
-### 技術棧分層
-
-| 層級 | 前端 | 後端 |
-|------|------|------|
-| **框架** | Next.js 15.5.4 + React 19 | FastAPI + Uvicorn |
-| **語言** | TypeScript 5 | Python 3.x |
-| **樣式** | Tailwind CSS 4 | - |
-| **狀態管理** | React Hooks | Pydantic Models |
-| **HTTP 客戶端** | Fetch API | HTTPX (via OpenAI SDK) |
-| **AI/ML** | - | OpenAI API |
-| **NLP** | - | jieba, nltk, langdetect |
-| **文件處理** | pdf-lib | PyMuPDF (fitz), pymupdf4llm |
-| **部署** | Docker + Next.js standalone | Docker + Uvicorn |
-
-## 🔧 核心技術詳解
-
-### 1. 前端架構 (Next.js)
-
-#### 1.1 專案結構
-
-```
-frontend/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx          # 根佈局
-│   │   ├── page.tsx            # 首頁（上傳介面）
-│   │   └── globals.css
-│   └── lib/
-│       └── generateAnalysisPdf.ts  # PDF 報告生成
-├── public/                     # 靜態資源
-├── package.json
-└── Dockerfile
-```
-
-#### 1.2 前端架構設計
-
-**組件架構**
-
-```
-┌─────────────────────────────────────────┐
-│           app/page.tsx                   │  ← 主頁面組件
-│                                          │
-│  ┌────────────────────────────────────┐ │
-│  │   上傳區 (Upload Zone)              │ │
-│  │   - 檔案拖放                         │ │
-│  │   - 參數配置                         │ │
-│  │   - API Key 輸入                    │ │
-│  └────────────────────────────────────┘ │
-│                                          │
-│  ┌────────────────────────────────────┐ │
-│  │   進度顯示區 (Progress Display)     │ │
-│  │   - 即時進度條                       │ │
-│  │   - 狀態訊息                         │ │
-│  └────────────────────────────────────┘ │
-│                                          │
-│  ┌────────────────────────────────────┐ │
-│  │   結果展示區 (Result Display)       │ │
-│  │   - 摘要內容                         │ │
-│  │   - 文字雲圖片                       │ │
-│  │   - PDF 下載按鈕                    │ │
-│  └────────────────────────────────────┘ │
-└─────────────────────────────────────────┘
-```
-
-**狀態管理流程**
-
-```
-React State (useState)
-│
-├─► selectedFile: File | null          ← 上傳檔案
-├─► apiKey: string                     ← API Key
-├─► baseUrl: string                    ← API 端點
-├─► analysisLevel: 'light'|'medium'|'deep'  ← 分析深度
-├─► enableVision: boolean               ← Vision 開關
-│
-├─► isAnalyzing: boolean                ← 分析狀態
-├─► progress: number                    ← 進度 (0-100)
-├─► statusMessage: string               ← 狀態訊息
-│
-└─► analysisResult: AnalysisData        ← 分析結果
-```
-
-**數據流程**
-
-```
-1. 用戶上傳檔案
-        ↓
-2. 前端驗證 (格式、大小)
-        ↓
-3. 構建 FormData
-        ↓
-4. 發送 POST /api/analyze
-        ↓
-5. 接收 NDJSON Stream
-        │
-        ├─► 解析進度事件 → 更新 UI
-        └─► 解析結果事件 → 儲存結果
-        ↓
-6. 顯示分析結果
-        ↓
-7. 生成 PDF 報告 (generateAnalysisPdf)
-        ↓
-8. 下載 PDF
-```
-
-**核心功能模組**
-
-| 模組 | 職責 | 技術實現 |
-|------|------|----------|
-| **檔案上傳** | 處理 PDF 上傳 | Drag & Drop API、File API |
-| **串流處理** | 解析 NDJSON 串流 | ReadableStream API、TextDecoder |
-| **進度追蹤** | 即時進度顯示 | React State、useEffect |
-| **PDF 生成** | 建立摘要報告 | pdf-lib、標準字型 |
-| **錯誤處理** | 異常捕獲與提示 | try-catch、錯誤狀態 |
-
-#### 1.3 關鍵技術實現
-
-**即時進度顯示**
-```typescript
-// NDJSON 串流解析
-const decoder = new TextDecoder();
-const reader = response.body.getReader();
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  
-  const chunk = decoder.decode(value);
-  const events = chunk.split('\n').filter(Boolean);
-  
-  for (const event of events) {
-    const data = JSON.parse(event);
-    if (data.type === 'progress') {
-      setProgress(data.progress);
-    }
-  }
-}
-```
-
-**PDF 報告生成**
-- 使用 `pdf-lib` 建構 PDF
-- 支援中文字型嵌入
-- 包含文字雲圖片
-- 自動分頁與排版
-
-### 2. 後端架構 (FastAPI)
-
-#### 2.1 專案結構
-
-```
-backend/
-├── app/
-│   ├── main.py                 # FastAPI 應用入口
-│   ├── core/
-│   │   ├── config.py          # 配置管理
-│   │   └── llm_client.py      # LLM 客戶端封裝
-│   ├── models/
-│   │   └── schemas.py         # Pydantic 數據模型
-│   ├── routes/
-│   │   ├── analyze.py         # 分析 API
-│   │   └── health.py          # 健康檢查
-│   ├── services/
-│   │   ├── analyze/           # 分析服務
-│   │   │   ├── summary_engine.py      # 摘要引擎
-│   │   │   ├── page_classifier.py     # 頁面分類器
-│   │   │   ├── page_parser.py         # 頁面解析器
-│   │   │   ├── image_extractor.py     # 圖片提取器
-│   │   │   └── vision_analyzer.py     # Vision API 分析器
-│   │   ├── nlp/               # NLP 服務
-│   │   │   ├── language_detect.py     # 語言偵測
-│   │   │   ├── keyword_extractor.py   # 關鍵字提取
-│   │   │   └── segmenter.py           # 文本分段
-│   │   ├── parsing/           # 檔案解析
-│   │   │   └── parse_pdf.py           # PDF 解析
-│   │   ├── wordcloud/         # 文字雲生成
-│   │   │   └── wordcloud_gen.py
-│   │   └── storage.py         # 檔案儲存
-│   └── utils/
-│       └── text_clean.py      # 文本清理工具
-├── assets/                    # 字型資源
-├── requirements.txt
-└── Dockerfile
-```
-
-#### 2.2 後端架構設計
-
-**分層架構**
-
-```
-┌─────────────────────────────────────────┐
-│         API Layer (routes/)              │  ← HTTP 端點層
-├─────────────────────────────────────────┤
-│       Service Layer (services/)          │  ← 業務邏輯層
-│  ┌─────────┬─────┬─────────┬──────────┐ │
-│  │ analyze │ nlp │ parsing │ wordcloud│ │
-│  └─────────┴─────┴─────────┴──────────┘ │
-├─────────────────────────────────────────┤
-│     Core Layer (core/)                   │  ← 核心基礎設施
-│  ┌────────────┬──────────────────────┐  │
-│  │   config   │   llm_client         │  │
-│  └────────────┴──────────────────────┘  │
-├─────────────────────────────────────────┤
-│     External APIs                        │  ← 外部服務
-│  ┌────────────┬──────────────────────┐  │
-│  │  OpenAI    │   Vision API         │  │
-│  └────────────┴──────────────────────┘  │
-└─────────────────────────────────────────┘
-```
-
-**請求處理流程**
-
-```
-1. 客戶端上傳 PDF
-        ↓
-2. API 路由層接收 (routes/analyze.py)
-        ↓
-3. 檔案儲存 (services/storage.py)
-        ↓
-4. PDF 解析 (services/parsing/parse_pdf.py)
-        ↓
-5. 頁面分類 (services/analyze/page_classifier.py)
-        ↓
-6. 並發生成摘要 (services/analyze/summary_engine.py)
-        │
-        ├─► LLM API 調用 (core/llm_client.py)
-        └─► Vision API 調用 (services/analyze/vision_analyzer.py)
-        ↓
-7. 全局摘要彙整 (services/analyze/summary_engine.py)
-        ↓
-8. 關鍵字提取 (services/nlp/keyword_extractor.py)
-        ↓
-9. 文字雲生成 (services/wordcloud/wordcloud_gen.py)
-        ↓
-10. 返回結果 (Streaming Response)
-```
-
-**核心服務模組**
-
-| 模組 | 職責 | 關鍵技術 |
-|------|------|----------|
-| **summary_engine** | 摘要生成引擎 | 異步並發、進度追蹤、錯誤處理 |
-| **page_classifier** | 智能頁面分類 | 規則引擎、內容分析 |
-| **llm_client** | LLM 統一接口 | OpenAI SDK、重試機制、速率控制 |
-| **keyword_extractor** | 關鍵字提取 | jieba (中文)、NLTK (英文)、TF-IDF |
-| **wordcloud_gen** | 文字雲生成 | PIL、中文字型支援、Base64 編碼 |
-| **parse_pdf** | PDF 解析 | PyMuPDF、文字提取、圖片提取 |
-
-#### 2.3 關鍵技術決策
-
-**API 設計 - Streaming Response**
-- 使用 `StreamingResponse` 實現即時進度更新
-- 採用 NDJSON (Newline Delimited JSON) 格式
-- 前端可即時顯示處理進度
-
-```python
-# 範例：進度事件流
-{"type": "progress", "progress": 12, "message": "檔案儲存完成"}
-{"type": "progress", "progress": 35, "message": "頁面判定完成"}
-{"type": "progress", "progress": 90, "message": "完成第 150/150 頁摘要"}
-{"type": "result", "progress": 100, "data": {...}}
-```
-
-**LLM 整合策略**
-- 支援多模型配置
-- 自動速率限制 (OpenAI SDK 內建重試)
-- 高並發處理（可調整並發數）
-
-**智能頁面分類**
-- 自動跳過無意義頁面：
-  - 封面頁、目錄頁
-  - 純圖片頁、照片頁
-  - 參考文獻頁
-  - 空白頁
-
-
-
-#### 2.4 核心演算法
-
-**摘要生成流程**
-
-```python
-# 1. 文檔解析
-pages = parse_pages(pdf_path)
-
-# 2. 頁面分類
-classified_pages = [classify_page(p) for p in pages]
-
-# 3. 並發生成摘要
-page_summaries = await summarize_pages(classified_pages)
-
-# 4. 全局摘要生成
-global_summary = await summarize_global(page_summaries)
-
-# 5. 關鍵字提取
-keywords = extract_keywords(pages, language)
-
-# 6. 文字雲生成
-wordcloud = generate_wordcloud(keywords, language)
-```
-
-**關鍵字提取演算法**
-- 中文：jieba 分詞 + TF-IDF
-- 英文：NLTK + 停用詞過濾
-
-
-## 🚀 部署架構
-
-### 本地開發
-
-```bash
-git clone https://github.com/MarkLo127/autonote-slide.git
-cd autonote-slide
-```
-
-### Docker Compose 部署
-
-**啟動服務**
-```bash
-docker compose up -d
-```
-
-**停止服務**
-```bash
-docker compose down -v
-```
-
-### 手動本地部署
-**前端**
-```bash
-pnpm -C frontend i
-pnpm -C frontend dev
-```
-
-**後端**
-```bash
-conda create -n autonote python=3.12
-conda activate autonote
-pip install -r backend/requirements.txt
-python -m backend
-```
-
-### 環境變數配置
-
-**後端**
-- `ALLOWED_ORIGINS`: CORS 允許來源
-- `MAX_BODY_MB`: 上傳大小限制（預設 50MB）
-- `OPENAI_API_KEY`: OpenAI API 金鑰
-
-**前端**
-- `NEXT_PUBLIC_BACKEND_URL`: 後端 API 端點
-- `PORT`: 前端服務埠（預設 5173）
-
-## 🎯 API 端點規格
-
-### POST /analyze
-
-上傳文件並進行分析。
-
-**Request (multipart/form-data)**
-```
-file: File                    # PDF 文件
-llm_api_key: string          # OpenAI API Key
-llm_base_url: string?        # 自定義 API 端點（可選）
-analysis_level: enum         # light | medium | deep
-enable_vision: boolean       # 是否啟用 Vision 分析
-```
-
-**Response (application/x-ndjson)**
-```json
-{"type": "progress", "progress": 5, "message": "開始儲存檔案"}
-{"type": "progress", "progress": 28, "message": "完成文字解析，共 150 頁"}
-{"type": "progress", "progress": 35, "message": "頁面判定完成"}
-{"type": "progress", "progress": 85, "message": "完成第 150/150 頁摘要"}
-{"type": "progress", "progress": 100, "message": "分析完成", "data": {...}}
-```
-
-**Result Data Schema**
-```typescript
-interface AnalyzeResponse {
-  language: string;
-  total_pages: number;
-  page_summaries: PageSummary[];
-  global_summary: GlobalSummary;
-  wordcloud_image_url: string | null;
-}
-```
-
-## 🔐 安全考量
-
-1. **上傳限制**
-   - 文件大小限制（預設 50MB）
-   - 僅支援 PDF 格式
-   - Content-Type 驗證
-
-2. **CORS 配置**
-   - 可配置允許來源
-   - 支援憑證傳遞
-
-3. **API Key 處理**
-   - 前端傳遞 API Key（不存儲）
-   - 支援後端統一配置
-   - HTTPS 傳輸加密
-
-4. **錯誤處理**
-   - API 失敗自動重試
-   - Fallback 機制避免空白結果
-   - 詳細錯誤日誌
-
-## 📊 性能優化
-
-### 後端優化
-
-1. **並發處理**
-   - 異步 API 調用
-   - 可配置並發數（預設 100）
-   - 智能速率控制
-
-2. **快取策略**
-   - 上傳文件臨時儲存
-   - 生成結果檔案快取
-
-3. **資源管理**
-   - PDF 文件流式讀取
-   - 及時釋放記憶體
-
-### 前端優化
-
-1. **Next.js 優化**
-   - Turbopack 編譯加速
-   - 伺服器端渲染（SSR）
-   - 自動代碼分割
-
-2. **用戶體驗**
-   - 即時進度反饋
-   - 樂觀 UI 更新
-   - 錯誤重試機制
-
-## 🧪 測試策略
-
-### 單元測試
-- 頁面分類邏輯
-- 文本清理函數
-- 關鍵字提取
-
-### 整合測試
-- API 端點測試
-- LLM 調用測試
-- Vision API 測試
-
-### E2E 測試
-- 完整上傳流程
-- PDF 報告生成
-- 錯誤處理
 ---
-**更新日期**: 2026-05-07
-**版本**: 1.0.1
+
+## 功能
+
+- 📄 PDF 上傳、文字擷取；掃描版自動 **OCR fallback**（RapidOCR，純 CPU）
+- 🤖 分段摘要 → 全局重點彙整（結論 / 關鍵數據 / 風險 / 行動建議）
+- 🌐 逐段翻譯（原文 ↔ 譯文對照），正體中文；OpenCC 繁體保底
+- 🏷️ 關鍵字提取（中：jieba+TF-IDF｜英：頻率+停用詞）
+- ☁️ 文字雲（Noto Sans TC）
+- 📑 對照式 PDF 報告匯出（reportlab、中文嵌字）
+- 🕘 歷史紀錄（SQLite 持久化，可查看 / 下載 / 刪除）
+- ⚡ 依 PDF hash + 選項去重快取；可 `refresh` 強制重跑
+- 🖥️ 前端：Vite + React 19 + TS，兩欄上傳（左控制、右 PDF 預覽）、繁中/EN、light/dark、RWD
+
+---
+
+## 系統架構
+
+三個 Docker 服務：
+
+```text
+   ┌─────────────┐   同源 /API 反代   ┌──────────────────────┐
+   │  frontend   │ ───────────────▶ │       gateway         │
+   │ Vite+React  │                   │      (FastAPI)        │
+   │  → nginx    │                   │ 上傳/擷取/OCR/分類/分段 │
+   └─────────────┘                   │ 摘要/翻譯/文字雲/報告   │
+                                     │ 快取(SQLite)/歷史(SQLite)│
+                                     └───────────┬───────────┘
+                                                 │ OpenAI 相容 /v1
+                                                 ▼
+                                     ┌──────────────────────┐
+                                     │   summarize-service   │
+                                     │  Ollama + Qwen3.5-4B   │
+                                     │  (Q4_K_M，已烤進 image) │
+                                     └──────────────────────┘
+```
+
+- **gateway**：整條 pipeline（PyMuPDF 擷取、RapidOCR fallback、頁面分類、分段、呼叫模型、關鍵字、文字雲、PDF 報告、SQLite 快取與歷史、NDJSON 串流進度）。以標準 httpx client 呼叫 `/v1`，不綁廠商 SDK；會過濾模型的 `<think>` 推理輸出。
+- **summarize-service**：Ollama 載入 **Qwen3.5-4B**，**摘要與翻譯共用同一顆**（一模兩用，術語一致）。
+- **frontend**：nginx 服務靜態檔並反代 API 到 gateway（同源、串流關 buffer）。
+
+---
+
+## 模型
+
+| 用途 | 模型 | 說明 |
+|---|---|---|
+| 摘要 + 技術文翻譯 | **Qwen3.5-4B**（Q4_K_M GGUF） | 2026 世代、支援 201 語言、中文最強；一模兩用。約 2.6GB 權重 |
+| 通用/多語翻譯（可選） | NLLB-200-distilled-600M（CTranslate2 int8） | `TRANSLATOR=nllb` 啟用；速度快、200+ 語言，但密集技術文品質較弱 |
+| 繁體保底 | OpenCC `s2t` | 補模型偶發繁簡漂移（確定性、成本近零） |
+
+**翻譯採視窗式**：把每段切成 ~1400 字小段逐段翻譯再合併，避免整段長文丟給小模型時 echo 原文或被截斷。
+
+**記憶體**：Qwen3.5-4B（含 KV ~4GB）+ gateway（~0.8GB）+ OS ≈ **~6GB → 8GB RAM 可跑**（低並發）。純 CPU；一份 15 頁文件約 15–20 分鐘。有 GPU 可換 7B/14B/30B-A3B 大幅加速。
+
+> **MLX 版不可上雲**（Apple Silicon 專屬）；雲端一律用 GGUF。
+
+---
+
+## 快速開始（Docker）
+
+```bash
+docker compose up -d --build
+```
+
+首次 build 會在 summarize-service image 內 `ollama pull qwen3.5:4b`（~3.4GB），較久；之後開機零下載。
+
+- 前端：`http://localhost:8080`
+- Gateway（除錯用）：`http://localhost:8001` ｜ 健康檢查 `GET /healthz`
+
+停止：`docker compose down`（加 `-v` 連 volume 一起清）。
+
+> 若在受限網路（熱點）build 出現 `tls: bad record MAC`：那是 MTU 問題。Docker Desktop → Docker Engine 加 `"mtu":1400`（OrbStack 則改 `~/.orbstack/config/docker.json`），重啟後重試。
+
+---
+
+## 設定（環境變數）
+
+gateway 全部可用環境變數覆寫（見 [backend/app/core/config.py](backend/app/core/config.py)）：
+
+| 變數 | 預設 | 說明 |
+|---|---|---|
+| `SUMMARIZE_URL` | `http://localhost:11434/v1` | 推理端點（Ollama/llama-server，OpenAI 相容） |
+| `SUMMARIZE_MODEL` | `qwen3.5:4b` | 摘要/翻譯模型 |
+| `TRANSLATOR` | `qwen` | `qwen`（一模兩用）｜`nllb`（通用/多語） |
+| `TARGET_LANG` | `zho_Hant` | 目標語言（正體中文；簡體用 `zho_Hans`） |
+| `MAX_CHUNK_CHARS` | `6000` | 每段字元上限 |
+| `MAX_BODY_MB` | `50` | 上傳大小上限 |
+| `ALLOWED_ORIGINS` | `*` | CORS 來源 |
+| `STORAGE_DIR` | `storage` | 上傳/報告/SQLite 位置 |
+| `DISABLE_OCR` | — | 設 `1` 關閉掃描頁 OCR fallback |
+| `DISABLE_OPENCC` | — | 設 `1` 關閉繁體保底 |
+
+---
+
+## API
+
+```
+POST   /documents            上傳 PDF（multipart：file、features、可選 ?stream=1、?refresh=1）
+                             features = summary,translate,wordcloud,report（可多選）
+                             → { "doc_id": "..." }；?stream=1 直接回 NDJSON 進度
+GET    /documents            歷史清單（新到舊）
+GET    /documents/{id}/status   { status, progress, message }
+GET    /documents/{id}/result   完整結果（見下）
+GET    /documents/{id}/report.pdf  下載對照式 PDF 報告
+DELETE /documents/{id}       刪除該筆歷史與其報告
+GET    /healthz              健康檢查（含模型就緒狀態）
+```
+
+**結果 schema**
+
+```jsonc
+{
+  "doc_id": "...", "language": "en", "total_pages": 15,
+  "segments": [{ "index": 0, "original": "...", "translated": "...", "summary": "..." }],
+  "global_summary": { "conclusion": "...", "data": "...", "risk": "...", "action": "..." },
+  "keywords": ["..."],
+  "wordcloud_image_url": "data:image/png;base64,...",
+  "report_pdf_url": "/documents/{id}/report.pdf"
+}
+```
+
+**NDJSON 串流事件**
+
+```json
+{"type":"progress","progress":15,"message":"擷取完成：15 頁 → 有效內容 6 段"}
+{"type":"progress","progress":90,"message":"彙整全局重點"}
+{"type":"result","progress":100,"message":"分析完成","data":{ ... }}
+```
+
+---
+
+## 專案結構
+
+```text
+backend/
+├── Dockerfile               gateway image
+├── requirements.txt
+├── __main__.py              python -m backend（uvicorn 入口）
+└── app/
+    ├── main.py              FastAPI 組裝 + CORS
+    ├── core/config.py       設定（環境變數）
+    ├── models/schemas.py    Pydantic 模型
+    ├── routes/              documents（上傳/狀態/結果/報告/歷史/刪除）、health
+    └── services/
+        ├── llm.py           OpenAI 相容 client（含 <think> 過濾）
+        ├── summarize.py     Qwen 摘要 + 四象限彙整
+        ├── translate.py     QwenTranslator（視窗式）+ NLLBTranslator
+        ├── textproc.py      PDF 擷取 / OCR fallback 觸發 / 分類 / 分段 / OpenCC
+        ├── ocr.py           RapidOCR 掃描頁辨識
+        ├── keywords.py      關鍵字提取
+        ├── wordcloud_gen.py 文字雲
+        ├── report.py        對照式 PDF 報告（reportlab）
+        ├── pipeline.py      編排（產出 NDJSON 進度事件）
+        ├── jobs.py          非同步任務（記憶體即時狀態）
+        ├── cache.py         結果去重快取（SQLite）
+        └── store.py         歷史持久化（SQLite）
+frontend/                    Vite + React 19 + TS（nginx 部署）
+summarize-service/           Ollama + Qwen3.5-4B（Dockerfile 烤模型）
+scripts/                     Phase 1 串通驗證腳本（見下）
+docker-compose.yml           三服務一鍵起
+RAILWAY.md                   Railway 雲端部署指南
+```
+
+---
+
+## 本地開發（不走 Docker）
+
+需要一個本地 Ollama（`ollama pull qwen3.5:4b`）或 llama-server 提供 `/v1`。
+
+**後端**
+```bash
+conda create -n autonote python=3.12 && conda activate autonote
+pip install -r backend/requirements.txt
+SUMMARIZE_URL=http://localhost:11434/v1 python -m backend   # 預設 :8000
+```
+
+**前端**
+```bash
+cd frontend && npm install
+VITE_BACKEND_URL=http://localhost:8000 npm run dev          # 預設 :5173
+```
+
+---
+
+## Phase 1 驗證腳本（scripts/）
+
+在包成服務前，用一支獨立 script 串通 **PDF → Qwen 摘要 → 翻譯**，實測品質與速度：
+
+```bash
+pip install -r backend/requirements.txt
+python scripts/phase1_pipeline.py --check                       # 檢查環境
+python scripts/phase1_pipeline.py paper.pdf                     # 預設 Qwen 翻譯
+python scripts/phase1_pipeline.py paper.pdf --translator nllb   # 改用 NLLB（需先轉 CTranslate2）
+python scripts/phase1_pipeline.py paper.pdf --no-translate      # 只測摘要
+```
+
+常用參數：`--summarize-url`、`--model`、`--target-lang`（預設 `zho_Hant`）、`--max-chunks`、`--no-opencc`。
+NLLB 需先轉檔：`ct2-transformers-converter --model facebook/nllb-200-distilled-600M --output_dir models/nllb-200-distilled-600m-ct2 --quantization int8`。
+
+---
+
+## 部署
+
+- **本地 / 單機 VM**：`docker compose up -d --build`（三服務、自帶模型）。
+- **Railway**：見 [RAILWAY.md](RAILWAY.md)（三服務、私有網路、storage volume、資源需求；注意需 ~8GB RAM 方案、image ~10GB、純 CPU）。
+
+---
+
+## 已知限制
+
+- 純 CPU 推理較慢；大量並發或超長文件會變慢，適合個人/小團隊。
+- 摘要品質受限於 4B 等級開源模型，無法對齊大型雲端模型；對「先抓重點再決定是否細讀」與離線、零成本、隱私自持已足夠。
+- 掃描版 PDF 靠 RapidOCR fallback；複雜表格/公式的高精度需求可另接 DeepSeek-OCR 作 GPU 選配層。
+- 報告 PDF 存在 gateway 的 `storage/reports`；歷史存在 SQLite。若外部清掉 `storage/` 檔案，歷史仍在但「下載 PDF」會 404。
+
+---
+
+## 安全與隱私
+
+- **無金鑰、無外送**：推理全程本機，文件不離開主機。
+- 上傳限制（僅 PDF、大小上限、Content-Type 驗證）、CORS 可配置。

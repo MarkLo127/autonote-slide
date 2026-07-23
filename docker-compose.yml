@@ -1,25 +1,44 @@
+# 完全本地、自帶模型的部署：一鍵 `docker compose up`，零 API Key、零外部下載。
 services:
-  backend:
+  # 推理服務：Ollama + Qwen3.5-4B（Q4_K_M）已烤進 image
+  summarize-service:
+    build:
+      context: ./summarize-service
+      args:
+        MODEL: qwen3.5:4b
+    restart: unless-stopped
+    # 只在 compose 內網開放，不對外
+    expose:
+      - "11434"
+
+  # API gateway：上傳 / 擷取 / 摘要 / 翻譯 / 文字雲 / 報告 / 快取
+  gateway:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    restart: unless-stopped
     environment:
-      APP_HOST: 0.0.0.0
-      APP_PORT: 8000
+      HOST: 0.0.0.0
+      PORT: "8000"
+      SUMMARIZE_URL: http://summarize-service:11434/v1
+      SUMMARIZE_MODEL: qwen3.5:4b
+      TRANSLATOR: qwen              # 一模兩用；改 nllb 需另備 NLLB 模型
+      TARGET_LANG: zho_Hant
+      ALLOWED_ORIGINS: "*"
     volumes:
-      - ./storage:/app/storage
+      - ./storage:/app/storage      # 上傳、報告、SQLite 快取
+    depends_on:
+      - summarize-service
     ports:
-      - "8000:8000"
+      - "8001:8000"                 # 對外除錯用；正式可只留內網
 
+  # 前端：Vite 靜態檔由 nginx 服務並反代 API 到 gateway（同源）
   frontend:
     build:
-      context: frontend
+      context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # Empty string = nginx proxies API calls to the backend container.
-        # Override with the actual backend public URL when deploying without nginx proxy.
-        VITE_BACKEND_URL: ""
-    ports:
-      - "5173:5173"
+    restart: unless-stopped
     depends_on:
-      - backend
+      - gateway
+    ports:
+      - "8080:80"

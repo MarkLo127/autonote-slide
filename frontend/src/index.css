@@ -1,0 +1,86 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+/* ── 設計 tokens（Flat 極簡：document grey + scan blue，含 light/dark）── */
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --fg: #0f172a;
+  --fg-muted: #64748b;
+  --border: #e2e8f0;
+  --primary: #1e293b;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --accent-weak: #eff6ff;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: none;
+  --maxw: 880px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1220;
+  --surface: #111a2e;
+  --surface-2: #17223a;
+  --fg: #e2e8f0;
+  --fg-muted: #94a3b8;
+  --border: #263248;
+  --primary: #e2e8f0;
+  --accent: #3b82f6;
+  --accent-fg: #ffffff;
+  --accent-weak: #172554;
+  --danger: #f87171;
+  --success: #4ade80;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1220;
+    --surface: #111a2e;
+    --surface-2: #17223a;
+    --fg: #e2e8f0;
+    --fg-muted: #94a3b8;
+    --border: #263248;
+    --primary: #e2e8f0;
+    --accent: #3b82f6;
+    --accent-weak: #172554;
+    --danger: #f87171;
+    --success: #4ade80;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { min-height: 100dvh; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: Inter, system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

@@ -9,12 +9,15 @@ pydantic
 PyMuPDF
 pymupdf4llm>=0.0.17
 Pillow
+rapidocr-onnxruntime>=1.3   # 掃描版 PDF 的 OCR fallback（純 CPU、免系統套件）
 
-# ── NLP / 視覺化 ──
+# ── NLP / 視覺化 / 報告 ──
 langdetect
 jieba
 nltk
 wordcloud
+matplotlib         # wordcloud 依賴
+reportlab          # 對照式 PDF 報告匯出
 
 # ── 本地開源推理（取代 OpenAI）──
 httpx>=0.27          # 呼叫 llama-server 的 OpenAI 相容端點（不綁廠商 SDK）
