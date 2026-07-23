@@ -103,7 +103,7 @@ gateway 全部可用環境變數覆寫（見 [backend/app/core/config.py](backen
 
 ## API
 
-```
+```text
 POST   /documents            上傳 PDF（multipart：file、features、可選 ?stream=1、?refresh=1）
                              features = summary,translate,wordcloud,report（可多選）
                              → { "doc_id": "..." }；?stream=1 直接回 NDJSON 進度
