@@ -20,6 +20,6 @@ services:
         # Override with the actual backend public URL when deploying without nginx proxy.
         VITE_BACKEND_URL: ""
     ports:
-      - "3000:3000"
+      - "5173:5173"
     depends_on:
       - backend

@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 模型權重與執行期產物（大檔，不進版控）
+/models/
+/storage/
+__pycache__/
+*.pyc

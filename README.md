@@ -384,7 +384,7 @@ python -m backend
 
 **前端**
 - `NEXT_PUBLIC_BACKEND_URL`: 後端 API 端點
-- `PORT`: 前端服務埠（預設 3000）
+- `PORT`: 前端服務埠（預設 5173）
 
 ## 🎯 API 端點規格
 

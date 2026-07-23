@@ -1,13 +1,24 @@
+# ── Web 框架 ──
 python-dotenv
 fastapi
 uvicorn[standard]
 python-multipart
 pydantic
+
+# ── PDF 解析 ──
+PyMuPDF
+pymupdf4llm>=0.0.17
+Pillow
+
+# ── NLP / 視覺化 ──
 langdetect
 jieba
 nltk
 wordcloud
-PyMuPDF
-pymupdf4llm>=0.0.17
-Pillow
-openai
+
+# ── 本地開源推理（取代 OpenAI）──
+httpx>=0.27          # 呼叫 llama-server 的 OpenAI 相容端點（不綁廠商 SDK）
+opencc>=1.1          # s2t 繁體保底（補 LLM 偶發繁簡漂移）
+ctranslate2>=4.4     # NLLB 翻譯本地推理（CPU int8，通用/多語選項）
+transformers>=4.44   # NLLB tokenizer
+sentencepiece>=0.2   # NLLB tokenizer 依賴
