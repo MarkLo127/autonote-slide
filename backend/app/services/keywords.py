@@ -19,9 +19,16 @@ _EN_STOP = {
 
 
 def detect_language(text: str) -> str:
-    try:
-        from langdetect import detect
+    """回傳 ISO 639-1 語言碼。CJK 先用字元集確定性判斷，其餘才交給 langdetect。"""
+    from .textproc import script_language
 
+    lang = script_language(text)
+    if lang:
+        return lang
+    try:
+        from langdetect import DetectorFactory, detect
+
+        DetectorFactory.seed = 0  # langdetect 預設隨機，固定種子以確保同文同果
         code = detect(text[:2000])
         return "zh" if code.startswith("zh") else code
     except Exception:  # noqa: BLE001

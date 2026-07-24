@@ -12,7 +12,7 @@ from ..core.config import Settings
 from . import textproc
 from .llm import LLMClient
 from .summarize import Summarizer, parse_global
-from .translate import build_translator
+from .translate import build_translator, to_iso
 
 
 def run_pipeline(pdf_path: str | Path, settings: Settings,
@@ -39,10 +39,18 @@ def run_pipeline(pdf_path: str | Path, settings: Settings,
             yield ev(100, "PDF 未擷取到有效文字（OCR 後仍無內容，可能是空白或非文字文件）", "error")
             return
 
+        # 偵測來源語言：已是目標語言就不必翻譯（中文文件翻成中文只會空轉又失真）
+        from .keywords import detect_language
+
+        src_lang = detect_language("\n".join(chunks))
+        if do_translate and src_lang == to_iso(settings.target_lang):
+            do_translate = False
+            yield ev(16, f"原文已是目標語言（{src_lang}），略過翻譯")
+
         # 準備模型（摘要與 Qwen 翻譯共用同一個 LLMClient）
         llm = LLMClient(settings.summarize_url, settings.model)
         summarizer = Summarizer(llm) if do_summary else None
-        translator = build_translator(settings, llm) if do_translate else None
+        translator = build_translator(settings, llm, src_lang) if do_translate else None
 
         n = len(chunks)
         segments: list[dict] = []
@@ -82,7 +90,7 @@ def run_pipeline(pdf_path: str | Path, settings: Settings,
             wordcloud_url = generate_wordcloud(kw_pairs, settings.font_path)
 
         result = {
-            "language": settings.src_lang.split("_")[0],
+            "language": src_lang,
             "total_pages": total_pages,
             "segments": segments,
             "global_summary": global_summary,

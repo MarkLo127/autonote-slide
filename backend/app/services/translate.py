@@ -14,7 +14,26 @@ LANG_NAMES = {
     "zho_Hans": "簡體中文",
     "eng_Latn": "English",
     "jpn_Jpan": "日本語",
+    "kor_Hang": "한국어",
 }
+
+# NLLB 語言碼 → langdetect 的 ISO 639-1 碼（用來比對偵測到的來源語言）
+_ISO_OF = {"zho": "zh", "eng": "en", "jpn": "ja", "kor": "ko",
+           "fra": "fr", "deu": "de", "spa": "es", "rus": "ru"}
+# 反向：偵測到的來源語言 → NLLB 碼（NLLB 需要明確的來源語言）
+_NLLB_OF = {"zh": "zho_Hans", "en": "eng_Latn", "ja": "jpn_Jpan", "ko": "kor_Hang",
+            "fr": "fra_Latn", "de": "deu_Latn", "es": "spa_Latn", "ru": "rus_Cyrl"}
+
+
+def to_iso(nllb_code: str) -> str:
+    """把 NLLB 碼（zho_Hant）轉成 ISO 639-1（zh），無對應時回原字串前綴。"""
+    prefix = nllb_code.split("_")[0]
+    return _ISO_OF.get(prefix, prefix)
+
+
+def to_nllb(iso_code: str, default: str = "eng_Latn") -> str:
+    """把 ISO 639-1（zh）轉成 NLLB 碼（zho_Hans），未知語言退回 default。"""
+    return _NLLB_OF.get(iso_code, default)
 
 
 @dataclass
@@ -57,7 +76,7 @@ class QwenTranslator:
             f"你是專業技術文件翻譯，將內容忠實譯成{self.tgt_name}。嚴格遵守：\n"
             "1. 人名、作者名、機構名保留英文原樣，不翻譯也不音譯（例：Haoran Wei）。\n"
             "2. 模型、演算法、專有名詞與縮寫保留原文，必要時中英並陳（例：DeepEncoder V2、LLM、VLMs）。\n"
-            "3. 必須翻成中文，禁止原封不動輸出英文；用詞精準、依上下文選正確詞義、術語前後一致。\n"
+            f"3. 必須翻成{self.tgt_name}，禁止原封不動輸出原文；用詞精準、依上下文選正確詞義、術語前後一致。\n"
             "4. 只輸出譯文本身，不要任何說明、開場白或標註。"
         )
         parts: list[str] = []
@@ -108,10 +127,12 @@ class NLLBTranslator:
         return out
 
 
-def build_translator(settings, llm: LLMClient) -> Translator:
+def build_translator(settings, llm: LLMClient, src_iso: str | None = None) -> Translator:
+    """src_iso 為偵測到的來源語言（ISO 639-1）；未提供時退回 settings.src_lang。"""
     if settings.translator == "qwen":
         return QwenTranslator(llm, settings.target_lang)
+    src = to_nllb(src_iso, settings.src_lang) if src_iso else settings.src_lang
     return NLLBTranslator(
-        settings.nllb_ct2_dir, settings.nllb_tokenizer, settings.src_lang,
+        settings.nllb_ct2_dir, settings.nllb_tokenizer, src,
         settings.target_lang, device=settings.nllb_device,
     )
